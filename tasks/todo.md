@@ -116,3 +116,15 @@
 - Action: `tsc -p action/tsconfig.json` clean; `build:action` emits both
   `dist/index.js` and `dist/recorder-preload.mjs`; bundled preload verified
   end-to-end (records `{HOME}/.npmrc` read attributed to the package).
+
+## Tracked risks (accepted, not blocking)
+
+1. **In-process threat model** — hostile packages can still patch over
+   wrappers or escape via `vm` contexts. README documents it;
+   `--experimental-permission` is the real answer once Node stabilizes it.
+   Never present ChainWatch as a full sandbox.
+2. **Sync is snapshot-based** — `last-scan.json` only. Real event history
+   (replay, audit trails) needs a JSONL/SQLite event store. Low priority
+   unless a customer asks.
+3. **No Postgres integration tests** — server tests are unit-only. Revisit
+   if subtle query/migration bugs start slipping through mocks.
