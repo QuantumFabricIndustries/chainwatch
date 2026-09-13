@@ -50,23 +50,23 @@ export const DEFAULT_POLICY: Policy = {
     'registry.npmjs.org',
     'registry.yarnpkg.com',
     'nodejs.org',
-    'github.com',
-    'codeload.github.com',
-    'objects.githubusercontent.com',
-    'shapeshift.com',
+    // NOTE: github.com is deliberately NOT allowlisted — Shai-Hulud exfiltrated
+    // stolen tokens to attacker-controlled GitHub repos. A lone github.com call
+    // only logs (score 30 < flagThreshold); it escalates only when chained with
+    // credential access, which is exactly the worm pattern.
   ],
   credentialPatterns: [
-    /[\\/]\.npmrc$/,
-    /[\\/]\.ssh[\\/]/,
-    /[\\/]\.env$/,
-    /[\\/]\.aws[\\/]credentials/,
-    /[\\/]\.aws[\\/]config/,
-    /[\\/]\.config[\\/]gcloud/,
-    /[\\/]\.kube[\\/]config/,
-    /[\\/]\.docker[\\/]config\.json$/,
-    /[\\/]\.git-credentials$/,
-    /[\\/]\.netrc$/,
-    /[\\/]\.pypirc$/,
+    /(?:^|[\\/])\.npmrc$/i,
+    /[\\/]\.ssh[\\/]/i,
+    /(?:^|[\\/])\.env(?:\.[a-z]+)?$/i,
+    /[\\/]\.aws[\\/]credentials/i,
+    /[\\/]\.aws[\\/]config/i,
+    /[\\/]\.config[\\/]gcloud/i,
+    /[\\/]\.kube[\\/]config/i,
+    /[\\/]\.docker[\\/]config\.json$/i,
+    /(?:^|[\\/])\.git-credentials$/i,
+    /(?:^|[\\/])\.netrc$/i,
+    /(?:^|[\\/])\.pypirc$/i,
   ],
   trustedPackages: [],
 };

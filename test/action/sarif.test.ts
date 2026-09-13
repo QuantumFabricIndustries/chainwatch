@@ -94,6 +94,23 @@ describe('SARIF reporter', () => {
     expect(result.locations[0]!.physicalLocation.region?.startLine).toBe(14);
   });
 
+  it('parses Windows paths without corrupting the drive letter', () => {
+    // C:\project\file.js:10 — a naive split(':') would produce uri 'C'.
+    const findings = [makeFinding('credential_file_access', 'high', 'evil@1.0.0', 'C:\\project\\file.js:10')];
+    const sarif = generateSarifObject(findings);
+    const loc = sarif.runs[0]!.results[0]!.locations[0]!.physicalLocation;
+    expect(loc.artifactLocation.uri).toBe('C:/project/file.js');
+    expect(loc.region?.startLine).toBe(10);
+  });
+
+  it('handles Windows paths with no line number', () => {
+    const findings = [makeFinding('obfuscation_score', 'medium', 'evil@1.0.0', 'D:\\pkg\\dist\\bundle.js')];
+    const sarif = generateSarifObject(findings);
+    const loc = sarif.runs[0]!.results[0]!.locations[0]!.physicalLocation;
+    expect(loc.artifactLocation.uri).toBe('D:/pkg/dist/bundle.js');
+    expect(loc.region).toBeUndefined();
+  });
+
   it('handles findings with no file', () => {
     const findings = [makeFinding('suspicious_publish', 'medium')];
     const sarif = generateSarifObject(findings);

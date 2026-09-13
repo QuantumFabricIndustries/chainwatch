@@ -9,16 +9,36 @@ export default function EventFeed() {
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    const ws = createEventSocket((finding) => {
-      setFindings((prev) => [finding, ...prev].slice(0, 100));
-    });
-    wsRef.current = ws;
-    ws.onopen = () => setConnected(true);
-    ws.onclose = () => setConnected(false);
-    ws.onerror = () => setConnected(false);
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let attempts = 0;
+    let unmounted = false;
+
+    const connect = () => {
+      if (unmounted) return;
+      ws = createEventSocket((finding) => {
+        setFindings((prev) => [finding, ...prev].slice(0, 100));
+      });
+      wsRef.current = ws;
+      ws.onopen = () => { attempts = 0; setConnected(true); };
+      ws.onclose = () => {
+        setConnected(false);
+        if (unmounted) return;
+        // Exponential backoff: 1s, 2s, 4s, ... capped at 30s.
+        const delay = Math.min(1000 * 2 ** attempts, 30_000);
+        attempts += 1;
+        reconnectTimer = setTimeout(connect, delay);
+      };
+      ws.onerror = () => ws?.close(); // let onclose schedule the reconnect
+    };
+    connect();
 
     return () => {
-      ws.close();
+      unmounted = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      // Prevent the close handler from scheduling a reconnect after unmount.
+      if (ws) ws.onclose = null;
+      ws?.close();
     };
   }, []);
 

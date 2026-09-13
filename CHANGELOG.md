@@ -5,6 +5,62 @@ All notable changes to ChainWatch are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed — runtime interception
+
+- `watch --block` / `--block-on` now actually reach the watched process — the
+  preload builds its policy from `chainwatch.config.json` and env vars
+  (`CHAINWATCH_BLOCK_ON`, `CHAINWATCH_TRUSTED`, `CHAINWATCH_ALLOW_HOSTS`).
+- `spawn('npm', ['publish'])` and `execFile` no longer evade self-propagation
+  detection; nested `npm/pnpm/yarn install` now fires `install_script`.
+- Interception now covers `fetch`, `WebSocket`, `tls.connect`, `dgram.send`,
+  `http2.connect`, `dns.promises.*`, `fs.promises`, `readdir`, `stat`/`access`.
+- `worker_threads` no longer bypasses monitoring — the preload is injected
+  into worker `execArgv`.
+- Attribution uses the LAST `node_modules` segment (pnpm `.pnpm/` layout and
+  nested deps), strips Windows `\\?\` realpath prefixes, compares
+  case-insensitively on win32, and raises `stackTraceLimit` for deep chains.
+- Credential patterns catch bare `.env`, `.env.*` variants, and are
+  case-insensitive; `github.com` removed from the network allowlist
+  (Shai-Hulud exfiltrated *to* GitHub).
+- Signal-killed children report real exit codes (`128+signo`), the event tail
+  no longer corrupts on multi-byte characters, engine listeners can't throw
+  into watched code, and repeated identical events dedupe with an
+  `occurrences` counter.
+
+### Fixed — scanner + CLI
+
+- `suspicious_publish` reads the real npm `time` field — the <48h recency
+  check works against production registry data; typosquat messages report the
+  actual Levenshtein distance.
+- `dependency_confusion` reads `.npmrc` from the scanned project root.
+- `postinstall_network` keeps HIGH for files referenced by install scripts
+  and downgrades unrelated network code to MEDIUM.
+- Nested `node_modules` are scanned; rules run in an 8-wide pool; registry
+  fetches have a 10s timeout.
+- `sync --since` validates its argument; `--sync` payloads serialize
+  descriptions as strings (server no longer 400s); chain score comes from
+  `detail.chainScore`; `--runs` rejects non-numeric input.
+- SARIF handles Windows drive-letter paths; reporters share `src/version.ts`
+  and the pretty header shows the actual scanned directory.
+
+### Fixed — server + dashboard
+
+- Dashboard trend query no longer 500s (parameterized interval).
+- API key auth uses an indexed `key_sha256` lookup (bcrypt still verifies) —
+  no more per-request table scan. `DELETE /api/v1/api-keys/:id` revokes keys;
+  the Settings page can create/list/revoke them.
+- WebSocket fan-out no longer drops every workspace client when one socket
+  closes; dashboard auto-reconnects with backoff.
+- Workspace creation can't self-mint `tier: 'enterprise'` (opt-in env var for
+  dev). Alert webhook URLs are SSRF-checked; outbound fetches have timeouts.
+- GitHub Action: `baseline-file`/`drift-threshold`/`upload-sarif` inputs are
+  wired — the install command runs under a bundled recorder preload and drift
+  becomes CW007 findings; SARIF uploads to code scanning via `github-token`.
+- `file:` test fixtures moved to `devDependencies` (published tarball was
+  uninstallable); stray `{}}` file removed.
+
 ## [1.0.0] — 2026-08-13
 
 ### Added — Phase 1: Runtime Interceptor

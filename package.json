@@ -45,7 +45,7 @@
   ],
   "scripts": {
     "build": "tsup",
-    "build:action": "esbuild action/src/main.ts --bundle --platform=node --target=node20 --outfile=action/dist/index.js --format=cjs",
+    "build:action": "esbuild action/src/main.ts --bundle --platform=node --target=node20 --outfile=action/dist/index.js --format=cjs && esbuild src/recorder-preload.ts --bundle --platform=node --target=node20 --outfile=action/dist/recorder-preload.mjs --format=esm",
     "build:all": "tsup && npm run build:action",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -63,14 +63,14 @@
     "@actions/github": "^6.0.0",
     "@types/node": "^22.20.1",
     "esbuild": "^0.24.2",
+    "fake-drift-pkg": "file:./test/fixtures/fake-drift-pkg",
+    "fake-worm": "file:./test/fixtures/fake-worm",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   },
   "dependencies": {
-    "commander": "^12.1.0",
-    "fake-worm": "file:./test/fixtures/fake-worm",
-    "fake-drift-pkg": "file:./test/fixtures/fake-drift-pkg"
+    "commander": "^12.1.0"
   }
 }

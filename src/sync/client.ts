@@ -69,6 +69,7 @@ export async function syncFindings(
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({ repo, run_id: runId, findings }),
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!res.ok) {
@@ -113,6 +114,7 @@ export async function syncBaseline(
       method: 'POST',
       headers: { 'Authorization': `Bearer ${apiKey}` },
       body: formData,
+      signal: AbortSignal.timeout(30_000),
     });
 
     if (!res.ok) {
@@ -147,7 +149,7 @@ export async function pullBaseline(
     const encodedRepo = encodeURIComponent(repo);
     const res = await fetch(
       `${apiUrl}/api/v1/baselines/${encodedRepo}?lockfile_hash=${lockfileHash}`,
-      { headers: { 'Authorization': `Bearer ${apiKey}` } },
+      { headers: { 'Authorization': `Bearer ${apiKey}` }, signal: AbortSignal.timeout(15_000) },
     );
 
     if (!res.ok) {
@@ -173,4 +175,19 @@ export async function hashFile(filePath: string): Promise<string> {
   const { readFileSync } = await import('node:fs');
   const content = readFileSync(filePath);
   return createHash('sha256').update(content).digest('hex');
+}
+
+/**
+ * Destroy undici's global dispatcher before process.exit().
+ * A fetch()'d keep-alive socket that is mid-close when the process exits hits
+ * a libuv UV_HANDLE_CLOSING assert on Windows (exit code 0xC0000409).
+ * Call this after the last fetch in any command that hard-exits.
+ */
+export async function closeNetworkConnections(): Promise<void> {
+  try {
+    const dispatcher = (globalThis as Record<symbol, unknown>)[
+      Symbol.for('undici.globalDispatcher.1')
+    ] as { destroy?: () => Promise<void> } | undefined;
+    await dispatcher?.destroy?.();
+  } catch { /* not an undici env / already closed */ }
 }

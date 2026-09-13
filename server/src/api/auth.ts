@@ -2,15 +2,17 @@
  * Auth middleware — validates API keys on every request.
  *
  * API key format: cw_<workspace_id>_<random_32_bytes_hex>
- * The server stores bcrypt(key_hash) — never the raw key.
+ * The server stores bcrypt(key_hash) + sha256(key) — never the raw key.
+ * sha256 is an indexed lookup column so auth is O(1); bcrypt still verifies.
  *
  * On validation, sets `request.workspace` to the workspace object and
- * `request.apiKey` to the key record.
+ * `request.apiKeyId` to the key record id.
  */
 
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import * as bcrypt from 'bcrypt';
-import { getApiKeyByHash, getWorkspaceById, touchApiKey } from '../db/queries.js';
+import { createHash } from 'node:crypto';
+import { getApiKeyBySha256, getWorkspaceById, touchApiKey } from '../db/queries.js';
 import type { Workspace } from '../db/queries.js';
 
 declare module 'fastify' {
@@ -29,6 +31,45 @@ function extractApiKey(req: FastifyRequest): string | null {
   return match[1] ?? null;
 }
 
+export function sha256Hex(input: string): string {
+  return createHash('sha256').update(input).digest('hex');
+}
+
+/**
+ * Validate a raw API key string against the database.
+ * Shared by the HTTP middleware and the WebSocket auth path.
+ */
+export async function validateApiKey(
+  rawKey: string,
+): Promise<{ workspace: Workspace; apiKeyId: string } | null> {
+  // Fast path: indexed sha256 lookup, then constant-time-ish bcrypt verify.
+  const keyRow = await getApiKeyBySha256(sha256Hex(rawKey));
+  if (keyRow) {
+    if (!(await bcrypt.compare(rawKey, keyRow.key_hash))) return null;
+    const workspace = await getWorkspaceById(keyRow.workspace_id);
+    if (!workspace) return null;
+    return { workspace, apiKeyId: keyRow.id };
+  }
+
+  // Legacy fallback: keys created before key_sha256 existed. Extract the
+  // workspace id from the key format and bcrypt-scan only that workspace's keys.
+  const parts = rawKey.split('_');
+  if (parts.length < 3) return null;
+  const workspace = await getWorkspaceById(parts[1]!);
+  if (!workspace) return null;
+
+  const { sql } = await import('../db/index.js');
+  const keys = await sql`SELECT * FROM api_keys WHERE workspace_id = ${workspace.id}`;
+  for (const row of keys) {
+    if (await bcrypt.compare(rawKey, row.key_hash as string)) {
+      // Backfill the sha256 so future requests take the fast path.
+      sql`UPDATE api_keys SET key_sha256 = ${sha256Hex(rawKey)} WHERE id = ${row.id}`.catch(() => {});
+      return { workspace, apiKeyId: row.id as string };
+    }
+  }
+  return null;
+}
+
 /**
  * Auth middleware — validates the API key and attaches workspace to the request.
  * Calls done() on success, sends 401 on failure.
@@ -40,61 +81,31 @@ export async function authMiddleware(req: FastifyRequest, reply: FastifyReply): 
     return;
   }
 
-  // Extract workspace ID from the key format: cw_<uuid>_<hex>
-  const parts = rawKey.split('_');
-  if (parts.length < 3) {
-    await reply.code(401).send({ error: 'Invalid API key format' });
-    return;
-  }
-
-  const workspaceId = parts[1]!;
-
-  // Verify the workspace exists.
-  const workspace = await getWorkspaceById(workspaceId);
-  if (!workspace) {
-    await reply.code(401).send({ error: 'Invalid API key — workspace not found' });
-    return;
-  }
-
-  // Look up the API key by trying to match the bcrypt hash.
-  // Since bcrypt hashes are unique, we compare against stored hashes.
-  // For efficiency, we store a lookup prefix (first 16 chars of the key) to
-  // narrow the search, then do a full bcrypt.compare.
-  // For now, we do a full table scan of api_keys for this workspace.
-  // In production, add a key_prefix column for indexing.
-  const { sql } = await import('../db/index.js');
-  const keys = await sql`SELECT * FROM api_keys WHERE workspace_id = ${workspaceId}`;
-  let matchedKeyId: string | null = null;
-  for (const keyRow of keys) {
-    const match = await bcrypt.compare(rawKey, keyRow.key_hash as string);
-    if (match) {
-      matchedKeyId = keyRow.id as string;
-      break;
-    }
-  }
-
-  if (!matchedKeyId) {
+  const result = await validateApiKey(rawKey);
+  if (!result) {
     await reply.code(401).send({ error: 'Invalid API key' });
     return;
   }
 
-  req.workspace = workspace;
-  req.apiKeyId = matchedKeyId;
+  req.workspace = result.workspace;
+  req.apiKeyId = result.apiKeyId;
 
   // Update last_used_at (fire and forget).
-  touchApiKey(matchedKeyId).catch(() => {});
+  touchApiKey(result.apiKeyId).catch(() => {});
 }
 
 /**
  * Generate a new API key for a workspace.
- * Returns the raw key (shown to the user once) and stores the bcrypt hash.
+ * Returns the raw key (shown to the user once) and stores bcrypt + sha256 hashes.
  */
 export async function generateApiKey(workspaceId: string, label: string): Promise<string> {
   const crypto = await import('node:crypto');
   const randomHex = crypto.randomBytes(32).toString('hex');
   const rawKey = `cw_${workspaceId}_${randomHex}`;
   const keyHash = await bcrypt.hash(rawKey, 10);
-  await import('../db/queries.js').then((m) => m.createApiKey(workspaceId, keyHash, label));
+  await import('../db/queries.js').then((m) =>
+    m.createApiKey(workspaceId, keyHash, label, sha256Hex(rawKey)),
+  );
   return rawKey;
 }
 

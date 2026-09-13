@@ -16,6 +16,8 @@ const RESET = '\x1b[0m';
 export interface PrettyOptions {
   useColor: boolean;
   quiet: boolean;
+  /** Scanned directory shown in the header (default ./node_modules). */
+  scanDir?: string;
 }
 
 export function formatPretty(
@@ -29,7 +31,7 @@ export function formatPretty(
   const lines: string[] = [];
 
   if (!opts.quiet) {
-    lines.push(`ChainWatch scan — ./node_modules (${pkgCount} packages)`);
+    lines.push(`ChainWatch scan — ${opts.scanDir ?? './node_modules'} (${pkgCount} packages)`);
     lines.push('');
   }
 

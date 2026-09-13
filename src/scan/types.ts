@@ -22,8 +22,15 @@ export interface RuleContext {
   packageLock?: Record<string, unknown>;
   /** Injected registry fetcher for suspicious-publish rule (tests can stub). */
   fetchRegistryMeta?: (name: string) => Promise<RegistryMeta | null>;
+  /** Project root (parent of the scanned node_modules) — where .npmrc lives. */
+  projectDir?: string;
 }
 
+/**
+ * Normalized registry metadata. Note the field is `times` here — the real npm
+ * registry returns `time`, and `makeDefaultFetcher` maps it. Test fixtures
+ * should use `times`.
+ */
 export interface RegistryMeta {
   name: string;
   /** ISO timestamps of each version's publish time. */

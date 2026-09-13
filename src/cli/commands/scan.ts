@@ -8,7 +8,7 @@ import * as path from 'node:path';
 import { scan, type ScanOptions } from '../../scan/scanner.js';
 import type { Severity } from '../../scan/finding.js';
 import { formatPretty, formatJson, formatSarif, exitCodeFor } from '../../reporter/index.js';
-import { syncFindings, detectRepoName } from '../../sync/client.js';
+import { syncFindings, detectRepoName, closeNetworkConnections } from '../../sync/client.js';
 
 export function registerScan(program: Command): void {
   program
@@ -44,6 +44,7 @@ export function registerScan(program: Command): void {
           output = formatPretty(result.findings, result.packageCount, result.scanMs, {
             useColor,
             quiet: opts.quiet ?? false,
+            scanDir: dir ?? './node_modules',
           });
       }
 
@@ -89,6 +90,7 @@ export function registerScan(program: Command): void {
       }
 
       const code = exitCodeFor(result.findings, failOn);
+      if (opts.sync) await closeNetworkConnections();
       process.exit(code);
     });
 }

@@ -15,6 +15,7 @@
  */
 
 import type { Finding, Severity } from '../scan/finding.js';
+import { CW_VERSION } from '../version.js';
 
 const SARIF_LEVEL: Record<Severity, 'note' | 'warning' | 'error'> = {
   low: 'note',
@@ -103,7 +104,7 @@ function getDefaultLevel(ruleId: string): 'note' | 'warning' | 'error' {
 }
 
 /** Generate a SARIF report object from findings. */
-export function generateSarifObject(findings: Finding[], toolVersion = '1.0.0'): SarifReport {
+export function generateSarifObject(findings: Finding[], toolVersion = CW_VERSION): SarifReport {
   const rules = buildRules(findings);
   const results: SarifResult[] = findings.map(toSarifResult);
 
@@ -127,7 +128,7 @@ export function generateSarifObject(findings: Finding[], toolVersion = '1.0.0'):
 }
 
 /** Generate a SARIF report as a JSON string. */
-export function formatSarif(findings: Finding[], toolVersion = '1.0.0'): string {
+export function formatSarif(findings: Finding[], toolVersion = CW_VERSION): string {
   return JSON.stringify(generateSarifObject(findings, toolVersion), null, 2);
 }
 
@@ -165,8 +166,13 @@ function buildRules(findings: Finding[]): SarifRule[] {
 function toSarifResult(f: Finding): SarifResult {
   const ruleId = getRuleId(f.rule);
   const file = f.file ?? '';
-  const [uri = '', line] = file.split(':');
-  const startLine = line ? parseInt(line, 10) : undefined;
+  // Split on the LAST colon so Windows paths (C:\...) and rel paths with
+  // backslashes don't corrupt the URI. Normalize to forward slashes — SARIF
+  // URIs are slash-separated.
+  const colon = file.lastIndexOf(':');
+  const hasLine = colon > 0 && /^\d+$/.test(file.slice(colon + 1));
+  const uri = (hasLine ? file.slice(0, colon) : file).replace(/\\/g, '/');
+  const startLine = hasLine ? parseInt(file.slice(colon + 1), 10) : undefined;
 
   return {
     ruleId,

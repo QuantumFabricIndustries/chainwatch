@@ -31,6 +31,9 @@ inputs:
   install-command:
     description: Command to run before scanning (e.g. npm ci)
     default: npm ci
+  github-token:
+    description: Token used for SARIF upload (defaults to the workflow token)
+    default: ${{ github.token }}
 
 outputs:
   findings-count:

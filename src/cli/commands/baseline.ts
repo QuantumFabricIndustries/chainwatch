@@ -12,7 +12,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
+import { spawnWatched } from '../../spawn-watched.js';
 
 import { readBaseline, compactBaseline, writeBaseline } from '../../baseline/store.js';
 import { formatBaselineSummary } from '../../baseline/summarizer.js';
@@ -114,6 +115,10 @@ function extractCommandArgs(): string[] {
 async function runRecord(cmdArgs: string[], opts: BaselineRecordOpts): Promise<void> {
   const baselinePath = path.resolve(opts.baseline ?? DEFAULT_BASELINE);
   const runs = parseInt(opts.runs ?? '1', 10);
+  if (!Number.isFinite(runs) || runs < 1) {
+    console.error(`Invalid --runs value "${opts.runs}". Must be a positive integer.`);
+    process.exit(1);
+  }
   const tag = opts.tag;
 
   // Resolve the recorder preload path.
@@ -143,27 +148,28 @@ async function runRecord(cmdArgs: string[], opts: BaselineRecordOpts): Promise<v
     const env = {
       ...process.env,
       NODE_OPTIONS: `${process.env['NODE_OPTIONS'] ?? ''} --import ${preloadUrl}`.trim(),
+      CHAINWATCH_PRELOAD_URL: preloadUrl,
       CHAINWATCH_BASELINE_FILE: baselinePath,
       ...(tag ? { CHAINWATCH_BASELINE_TAG: tag } : {}),
     };
 
-    const [cmd = '', ...rest] = cmdArgs;
-    const child: ChildProcess = spawn(cmd, rest, {
-      env,
-      stdio: 'inherit',
-      shell: process.platform === 'win32',
-    });
+    const child: ChildProcess = spawnWatched(cmdArgs, { env, stdio: 'inherit' });
 
     const exitCode = await new Promise<number>((resolve) => {
-      child.on('exit', (code) => resolve(code ?? 0));
+      child.on('exit', (code, signal) => {
+        if (code !== null) return resolve(code);
+        const signo: Record<string, number> = { SIGINT: 2, SIGTERM: 15, SIGKILL: 9 };
+        resolve(signal ? 128 + (signo[signal] ?? 0) : 1);
+      });
       child.on('error', (err) => {
         console.error(`chainwatch: failed to spawn command: ${err.message}`);
         resolve(1);
       });
     });
 
-    if (exitCode !== 0 && run === runs) {
-      console.error(`\n  Command exited with code ${exitCode}. Baseline may be incomplete.`);
+    if (exitCode !== 0) {
+      console.error(`\n  Command exited with code ${exitCode} on run ${run}. Baseline may be incomplete.`);
+      if (run < runs) console.error('  Continuing with remaining runs...');
     }
   }
 
@@ -220,6 +226,8 @@ async function runPull(opts: BaselinePullOpts): Promise<void> {
 
   console.log(`Pulling team baseline for ${repo} (lockfile: ${lockfileHash.slice(0, 12)}...)`);
   const result = await pullBaseline(lockfileHash, baselinePath, { repo });
+  const { closeNetworkConnections } = await import('../../sync/client.js');
+  await closeNetworkConnections();
   if (result.skipped) {
     console.error('No API key configured. Set CHAINWATCH_API_KEY env var.');
     process.exit(1);

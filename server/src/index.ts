@@ -20,7 +20,7 @@ import { registerBaselinesRoutes } from './api/baselines.js';
 import { registerDashboardRoutes } from './api/dashboard.js';
 import { registerWebSocketRoutes } from './realtime/ws.js';
 import { createWorkspace, listAlertConfigs, createAlertConfig } from './db/queries.js';
-import { testAlert } from './api/alerts.js';
+import { testAlert, assertUrlAllowed } from './api/alerts.js';
 
 const PORT = parseInt(process.env['PORT'] ?? '3000', 10);
 const HOST = process.env['HOST'] ?? '0.0.0.0';
@@ -41,14 +41,18 @@ async function buildServer(): Promise<ReturnType<typeof Fastify>> {
 
   // Bootstrap: create a workspace and get an API key.
   // This is the only unauthenticated endpoint. In production, this would be
-  // behind a signup flow with email verification.
+  // behind a signup flow with email verification and server-side billing —
+  // tier is NEVER taken from the request body (anyone could self-mint
+  // "enterprise"). Set CHAINWATCH_ALLOW_SELF_TIER=1 for local dev only.
+  const allowSelfTier = process.env['CHAINWATCH_ALLOW_SELF_TIER'] === '1';
   app.post('/api/v1/workspaces', async (req, reply) => {
     const { name, slug, tier } = req.body as { name: string; slug: string; tier?: string };
     if (!name || !slug) {
       await reply.code(400).send({ error: 'name and slug are required' });
       return;
     }
-    const ws = await createWorkspace(name, slug, (tier as 'free' | 'team' | 'enterprise') ?? 'free');
+    const effectiveTier = allowSelfTier ? ((tier as 'free' | 'team' | 'enterprise') ?? 'free') : 'free';
+    const ws = await createWorkspace(name, slug, effectiveTier);
     const apiKey = await generateApiKey(ws.id, 'initial');
     await reply.code(201).send({ workspace: ws, api_key: apiKey });
   });
@@ -57,9 +61,10 @@ async function buildServer(): Promise<ReturnType<typeof Fastify>> {
 
   // Apply auth middleware to all /api/v1/* routes except workspace creation.
   app.addHook('preHandler', async (req, reply) => {
-    // Skip auth for health check and workspace creation.
-    if (req.url === '/health' || req.url === '/api/v1/workspaces') return;
-    if (req.url.startsWith('/ws')) return; // WS handles its own auth
+    // Compare on the path only — a query string must not defeat the check.
+    const urlPath = req.url.split('?')[0]!.replace(/\/+$/, '') || '/';
+    if (urlPath === '/health' || urlPath === '/api/v1/workspaces') return;
+    if (urlPath === '/ws') return; // WS handles its own auth
     await authMiddleware(req, reply);
   });
 
@@ -78,9 +83,20 @@ async function buildServer(): Promise<ReturnType<typeof Fastify>> {
 
   app.post('/api/v1/alerts', async (req, reply) => {
     const workspace = req.workspace!;
-    const { type, config, min_severity } = req.body as { type: string; config: object; min_severity?: string };
+    const { type, config, min_severity } = req.body as { type: string; config: { url?: string }; min_severity?: string };
     if (!type || !config) {
       await reply.code(400).send({ error: 'type and config are required' });
+      return;
+    }
+    if (type !== 'slack' && type !== 'webhook') {
+      await reply.code(400).send({ error: 'type must be slack or webhook' });
+      return;
+    }
+    // Reject SSRF-able webhook URLs at creation time.
+    try {
+      assertUrlAllowed(config.url ?? '');
+    } catch (e) {
+      await reply.code(400).send({ error: (e as Error).message });
       return;
     }
     const alert = await createAlertConfig(workspace.id, type as 'slack' | 'webhook', config as any, min_severity ?? 'high');
@@ -115,6 +131,19 @@ async function buildServer(): Promise<ReturnType<typeof Fastify>> {
     const { listApiKeys } = await import('./db/queries.js');
     const keys = await listApiKeys(workspace.id);
     await reply.send({ keys });
+  });
+
+  // Revoke an API key (scoped to the caller's workspace).
+  app.delete('/api/v1/api-keys/:id', async (req, reply) => {
+    const workspace = req.workspace!;
+    const { id } = req.params as { id: string };
+    const { deleteApiKey } = await import('./db/queries.js');
+    const deleted = await deleteApiKey(id, workspace.id);
+    if (!deleted) {
+      await reply.code(404).send({ error: 'API key not found' });
+      return;
+    }
+    await reply.send({ deleted: true });
   });
 
   return app;

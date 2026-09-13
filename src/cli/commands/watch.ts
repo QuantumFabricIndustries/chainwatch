@@ -14,7 +14,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
+import { spawnWatched } from '../../spawn-watched.js';
 import type { ChainWatchEvent } from '../../events.js';
 import { formatEvent } from '../../reporter/index.js';
 import { readBaseline, compactBaseline } from '../../baseline/store.js';
@@ -25,12 +26,16 @@ import type { BaselineEvent } from '../../baseline/types.js';
 const __filename_esm = fileURLToPath(import.meta.url);
 const __dirname_esm = path.dirname(__filename_esm);
 
+const VALID_BLOCK_LEVELS = ['low', 'medium', 'high', 'critical'] as const;
+
 export function registerWatch(program: Command): void {
   program
     .command('watch [args...]')
     .description('Run a command under live ChainWatch monitoring')
-    .option('--block', 'Block on HIGH+ (default: warn only)')
+    .option('--block', 'Block on HIGH+ (default: warn only, block on critical)')
     .option('--block-on <lvl>', 'Block threshold: low|medium|high|critical', 'critical')
+    .option('--trust <pkgs>', 'Comma-separated package names to never block')
+    .option('--allow <hosts>', 'Comma-separated extra allowlist hosts')
     .option('-o, --output <fmt>', 'Output format: pretty | json', 'pretty')
     .option('--log <file>', 'Append events to a JSONL log file')
     .option('--drift', 'Enable drift detection (requires baseline)')
@@ -57,6 +62,8 @@ export function registerWatch(program: Command): void {
 interface WatchCliOpts {
   block?: boolean;
   blockOn?: string;
+  trust?: string;
+  allow?: string;
   output?: string;
   log?: string;
   drift?: boolean;
@@ -72,6 +79,88 @@ function extractCommandArgs(): string[] {
   return process.argv.slice(idx + 1);
 }
 
+/** Build the child-process env: preload + policy wiring. */
+function childEnv(opts: WatchCliOpts, preloadUrl: string, extra: Record<string, string>): NodeJS.ProcessEnv {
+  // --block means "block on high+"; --block-on overrides it entirely.
+  const blockOn = opts.block ? 'high' : opts.blockOn;
+  if (blockOn && !VALID_BLOCK_LEVELS.includes(blockOn as typeof VALID_BLOCK_LEVELS[number])) {
+    console.error(`Invalid --block-on level "${blockOn}". Must be: ${VALID_BLOCK_LEVELS.join(', ')}`);
+    process.exit(1);
+  }
+  return {
+    ...process.env,
+    NODE_OPTIONS: `${process.env['NODE_OPTIONS'] ?? ''} --import ${preloadUrl}`.trim(),
+    CHAINWATCH_PRELOAD_URL: preloadUrl,
+    ...(blockOn ? { CHAINWATCH_BLOCK_ON: blockOn } : {}),
+    ...(opts.trust ? { CHAINWATCH_TRUSTED: opts.trust } : {}),
+    ...(opts.allow ? { CHAINWATCH_ALLOW_HOSTS: opts.allow } : {}),
+    ...extra,
+  };
+}
+
+/** Normalize a child exit: signal kills become their conventional 128+n code. */
+function exitCodeOf(code: number | null, signal: NodeJS.Signals | null): number {
+  if (code !== null) return code;
+  const signo: Record<string, number> = { SIGINT: 2, SIGTERM: 15, SIGKILL: 9, SIGHUP: 1, SIGPIPE: 13 };
+  return 128 + (signal ? (signo[signal] ?? 0) : 0) || 1;
+}
+
+/**
+ * Incremental JSONL tail reader. Reads only complete lines — a partial line
+ * (in-flight write or a multi-byte char split) stays buffered for next poll.
+ */
+class JsonlTail {
+  private offset = 0;
+  private pending = '';
+  constructor(private readonly file: string) {}
+
+  /** Returns newly completed parsed lines since last call. */
+  poll<T>(): T[] {
+    let buf: Buffer;
+    try {
+      const fd = fs.openSync(this.file, 'r');
+      try {
+        const stat = fs.fstatSync(fd);
+        if (stat.size <= this.offset) return [];
+        buf = Buffer.alloc(stat.size - this.offset);
+        fs.readSync(fd, buf, 0, buf.length, this.offset);
+        this.offset = stat.size;
+      } finally {
+        fs.closeSync(fd);
+      }
+    } catch {
+      return []; // file doesn't exist yet / vanished
+    }
+
+    this.pending += buf.toString('utf8');
+    const lastNl = this.pending.lastIndexOf('\n');
+    if (lastNl === -1) return [];
+    const complete = this.pending.slice(0, lastNl);
+    this.pending = this.pending.slice(lastNl + 1);
+
+    const out: T[] = [];
+    for (const line of complete.split('\n')) {
+      if (!line.trim()) continue;
+      try {
+        out.push(JSON.parse(line) as T);
+      } catch { /* corrupt line — skip */ }
+    }
+    return out;
+  }
+
+  /** Force-flush any remaining partial line (end of run). */
+  flush<T>(): T[] {
+    const rest = this.pending.trim();
+    this.pending = '';
+    if (!rest) return [];
+    try {
+      return [JSON.parse(rest) as T];
+    } catch {
+      return [];
+    }
+  }
+}
+
 // ─── Standard watch (Phase 1 interceptor) ───────────────────────────────────
 
 async function runWatch(cmdArgs: string[], opts: WatchCliOpts): Promise<void> {
@@ -82,46 +171,25 @@ async function runWatch(cmdArgs: string[], opts: WatchCliOpts): Promise<void> {
 
   const preloadPath = resolvePreload('preload.js');
   const preloadUrl = pathToFileURL(preloadPath).href;
+  const env = childEnv(opts, preloadUrl, { CHAINWATCH_EVENT_LOG: eventLogPath });
 
-  const env = {
-    ...process.env,
-    NODE_OPTIONS: `${process.env['NODE_OPTIONS'] ?? ''} --import ${preloadUrl}`.trim(),
-    CHAINWATCH_EVENT_LOG: eventLogPath,
-  };
-
-  const [cmd = '', ...rest] = cmdArgs;
-  const child: ChildProcess = spawn(cmd, rest, {
-    env,
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
-  });
+  const child: ChildProcess = spawnWatched(cmdArgs, { env, stdio: 'inherit' });
 
   console.log(`ChainWatch watching: ${cmdArgs.join(' ')}`);
-  console.log(`Policy: default (warn on high, block on ${opts.blockOn ?? 'critical'})\n`);
+  console.log(`Policy: default (warn on high, block on ${opts.block ? 'high' : opts.blockOn ?? 'critical'})\n`);
 
   const events: ChainWatchEvent[] = [];
-  let lastSize = 0;
+  const tail = new JsonlTail(eventLogPath);
 
   const tailInterval = setInterval(() => {
-    try {
-      const stat = fs.statSync(eventLogPath);
-      if (stat.size > lastSize) {
-        const content = fs.readFileSync(eventLogPath, 'utf8');
-        const lines = content.slice(lastSize).split('\n').filter(Boolean);
-        lastSize = stat.size;
-        for (const line of lines) {
-          try {
-            const event = JSON.parse(line) as ChainWatchEvent;
-            events.push(event);
-            printWatchEvent(event, opts);
-          } catch { /* incomplete line */ }
-        }
-      }
-    } catch { /* file doesn't exist yet */ }
+    for (const event of tail.poll<ChainWatchEvent>()) {
+      events.push(event);
+      printWatchEvent(event, opts);
+    }
   }, 100);
 
   const exitCode = await new Promise<number>((resolve) => {
-    child.on('exit', (code) => resolve(code ?? 0));
+    child.on('exit', (code, signal) => resolve(exitCodeOf(code, signal)));
     child.on('error', (err) => {
       console.error(`chainwatch: failed to spawn command: ${err.message}`);
       resolve(1);
@@ -129,7 +197,10 @@ async function runWatch(cmdArgs: string[], opts: WatchCliOpts): Promise<void> {
   });
 
   clearInterval(tailInterval);
-  flushRemainingEvents(eventLogPath, lastSize, events, opts);
+  for (const event of [...tail.poll<ChainWatchEvent>(), ...tail.flush<ChainWatchEvent>()]) {
+    events.push(event);
+    printWatchEvent(event, opts);
+  }
 
   console.log('\n  ' + '─'.repeat(50));
   const blocked = events.filter((e) => e.action === 'block').length;
@@ -145,13 +216,13 @@ async function runWatch(cmdArgs: string[], opts: WatchCliOpts): Promise<void> {
   if (opts.sync && events.length > 0) {
     const { syncFindings, detectRepoName } = await import('../../sync/client.js');
     const repo = await detectRepoName() ?? undefined;
-    // Convert ChainWatchEvents to Findings for sync.
+    // Convert ChainWatchEvents to Findings for sync (schema requires strings).
     const findings = events.map((e) => ({
       rule: e.signal,
       severity: e.severity,
       package: e.package,
-      description: e.detail,
-      chain_score: e.score,
+      description: describeEvent(e),
+      chain_score: (e.detail['chainScore'] as number) ?? e.score,
     }));
     const runId = `watch-${Date.now()}`;
     const syncResult = await syncFindings(findings as any, runId, { repo });
@@ -160,29 +231,20 @@ async function runWatch(cmdArgs: string[], opts: WatchCliOpts): Promise<void> {
     } else if (syncResult.error) {
       console.error(`  Sync failed: ${syncResult.error}`);
     }
+    const { closeNetworkConnections } = await import('../../sync/client.js');
+    await closeNetworkConnections();
   }
 
   try { fs.rmSync(path.dirname(eventLogPath), { recursive: true, force: true }); } catch { /* */ }
   process.exit(exitCode);
 }
 
-function flushRemainingEvents(
-  logPath: string,
-  lastSize: number,
-  events: ChainWatchEvent[],
-  opts: WatchCliOpts,
-): void {
-  try {
-    const content = fs.readFileSync(logPath, 'utf8');
-    const lines = content.slice(lastSize).split('\n').filter(Boolean);
-    for (const line of lines) {
-      try {
-        const event = JSON.parse(line) as ChainWatchEvent;
-        events.push(event);
-        printWatchEvent(event, opts);
-      } catch { /* */ }
-    }
-  } catch { /* */ }
+/** Human-readable one-liner for an event's detail object (for sync). */
+function describeEvent(e: ChainWatchEvent): string {
+  const parts = Object.entries(e.detail)
+    .filter(([k]) => k !== 'chainScore' && k !== 'occurrences')
+    .map(([k, v]) => `${k}=${typeof v === 'object' ? JSON.stringify(v) : String(v)}`);
+  return `${e.signal}${parts.length ? ': ' + parts.join(' ') : ''}`;
 }
 
 function printWatchEvent(e: ChainWatchEvent, opts: WatchCliOpts): void {
@@ -198,6 +260,10 @@ function printWatchEvent(e: ChainWatchEvent, opts: WatchCliOpts): void {
 async function runDriftWatch(cmdArgs: string[], opts: WatchCliOpts): Promise<void> {
   const baselinePath = path.resolve(opts.baseline ?? '.chainwatch/baseline.jsonl');
   const driftThreshold = parseInt(opts.driftThreshold ?? '40', 10);
+  if (!Number.isFinite(driftThreshold) || driftThreshold < 0 || driftThreshold > 100) {
+    console.error(`Invalid --drift-threshold "${opts.driftThreshold}". Must be 0–100.`);
+    process.exit(1);
+  }
 
   // Load baseline.
   const baselineEvents = readBaseline(baselinePath);
@@ -215,78 +281,46 @@ async function runDriftWatch(cmdArgs: string[], opts: WatchCliOpts): Promise<voi
 
   const preloadPath = resolvePreload('recorder-preload.js');
   const preloadUrl = pathToFileURL(preloadPath).href;
+  const env = childEnv(opts, preloadUrl, { CHAINWATCH_RECORDER_LOG: recorderLogPath });
 
-  const env = {
-    ...process.env,
-    NODE_OPTIONS: `${process.env['NODE_OPTIONS'] ?? ''} --import ${preloadUrl}`.trim(),
-    CHAINWATCH_RECORDER_LOG: recorderLogPath,
-  };
-
-  const [cmd = '', ...rest] = cmdArgs;
-  const child: ChildProcess = spawn(cmd, rest, {
-    env,
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
-  });
+  const child: ChildProcess = spawnWatched(cmdArgs, { env, stdio: 'inherit' });
 
   console.log(`ChainWatch watching: ${cmdArgs.join(' ')} [drift detection ON]`);
   console.log(`Baseline: ${baselinePath} (${baseline.events.size} events, ${baseline.runCount} runs)\n`);
 
-  // Tail the recorder log for real-time event count.
-  let lastSize = 0;
-  const tailInterval = setInterval(() => {
-    try {
-      const stat = fs.statSync(recorderLogPath);
-      if (stat.size > lastSize) lastSize = stat.size;
-    } catch { /* */ }
-  }, 100);
+  const tail = new JsonlTail(recorderLogPath);
+  const liveEvents: BaselineEvent[] = [];
 
   let killed = false;
   if (opts.blockOnDrift) {
     // Check for drift periodically and kill if threshold exceeded.
     const checkInterval = setInterval(() => {
-      try {
-        const content = fs.readFileSync(recorderLogPath, 'utf8');
-        const lines = content.split('\n').filter(Boolean);
-        const events: BaselineEvent[] = [];
-        for (const line of lines) {
-          try { events.push(JSON.parse(line)); } catch { /* */ }
-        }
-        const results = diffBaseline(events, baseline);
-        const highDrift = results.filter((r) => r.driftScore >= driftThreshold);
-        if (highDrift.length > 0 && !killed) {
-          killed = true;
-          console.log('\n  🛑 Drift threshold exceeded — killing process\n');
-          child.kill('SIGKILL');
-        }
-      } catch { /* */ }
+      liveEvents.push(...tail.poll<BaselineEvent>());
+      const results = diffBaseline(liveEvents, baseline);
+      const highDrift = results.filter((r) => r.driftScore >= driftThreshold);
+      if (highDrift.length > 0 && !killed) {
+        killed = true;
+        console.log('\n  🛑 Drift threshold exceeded — killing process\n');
+        child.kill('SIGKILL');
+      }
     }, 500);
     child.on('exit', () => clearInterval(checkInterval));
   }
 
   const exitCode = await new Promise<number>((resolve) => {
-    child.on('exit', (code) => resolve(code ?? 0));
+    child.on('exit', (code, signal) => resolve(exitCodeOf(code, signal)));
     child.on('error', (err) => {
       console.error(`chainwatch: failed to spawn command: ${err.message}`);
       resolve(1);
     });
   });
 
-  clearInterval(tailInterval);
-
   // Give the child's process.on('exit') handler time to flush remaining events
-  // to the recorder log file. Without this delay, we may read the file before
-  // the child's exit handler has written the final batch.
+  // to the recorder log file before the final read.
   await new Promise((resolve) => setTimeout(resolve, 300));
 
   // Read all recorded events and compute drift.
-  const recordedEvents: BaselineEvent[] = [];
-  try {
-    const content = fs.readFileSync(recorderLogPath, 'utf8');
-    for (const line of content.split('\n').filter(Boolean)) {
-      try { recordedEvents.push(JSON.parse(line)); } catch { /* */ }
-    }
-  } catch { /* */ }
+  const recordedEvents: BaselineEvent[] = [...liveEvents, ...tail.poll<BaselineEvent>(), ...tail.flush<BaselineEvent>()];
 
   const results = diffBaseline(recordedEvents, baseline);
   const useColor = process.stdout.isTTY;

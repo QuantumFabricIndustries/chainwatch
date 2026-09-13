@@ -61,14 +61,15 @@ function levenshtein(a: string, b: string): number {
 }
 
 /** Check if a name is a typosquat of any top package (distance <= 2). */
-function typosquatOf(name: string): string | null {
+function typosquatOf(name: string): { top: string; distance: number } | null {
   // Skip known-good packages that happen to be close to a top package name.
   if (TYPOSQUAT_ALLOWLIST.has(name)) return null;
   const base = name.startsWith('@') ? name.split('/')[1] ?? '' : name;
   for (const top of TOP_PACKAGES) {
     if (base === top) continue; // exact match is not a typosquat
     if (Math.abs(base.length - top.length) > 2) continue;
-    if (levenshtein(base, top) <= 2) return top;
+    const d = levenshtein(base, top);
+    if (d <= 2) return { top, distance: d };
   }
   return null;
 }
@@ -87,7 +88,7 @@ export const suspiciousPublish: Rule = {
         rule: 'suspicious_publish',
         severity: 'medium',
         package: pkgRef,
-        description: `Package name "${meta.name}" is a likely typosquat of "${typo}" (Levenshtein distance 1)`,
+        description: `Package name "${meta.name}" is a likely typosquat of "${typo.top}" (Levenshtein distance ${typo.distance})`,
       });
     }
 

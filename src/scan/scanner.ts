@@ -29,47 +29,59 @@ export interface ScanResult {
 
 /**
  * Discover all packages in a node_modules directory by reading package.json
- * files. Handles scoped packages (@org/name).
+ * files. Handles scoped packages (@org/name), nested node_modules (version-
+ * conflicted deps), and pnpm's .pnpm layout.
  */
 export function discoverPackages(nodeModulesDir: string): PackageMeta[] {
   const packages: PackageMeta[] = [];
-  if (!fs.existsSync(nodeModulesDir)) return packages;
+  const visited = new Set<string>();
+  discoverInto(nodeModulesDir, packages, visited, 0);
+  return packages;
+}
+
+function discoverInto(
+  dir: string,
+  packages: PackageMeta[],
+  visited: Set<string>,
+  depth: number,
+  scope?: string,
+): void {
+  if (depth > 6 || !fs.existsSync(dir)) return;
 
   let entries: fs.Dirent[];
   try {
-    entries = fs.readdirSync(nodeModulesDir, { withFileTypes: true });
+    entries = fs.readdirSync(dir, { withFileTypes: true });
   } catch {
-    return packages;
+    return;
   }
 
   for (const entry of entries) {
     if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
     if (entry.name.startsWith('.')) continue;
-    if (entry.name === '.package-lock.json') continue;
 
-    const pkgPath = path.join(nodeModulesDir, entry.name);
+    const pkgPath = path.join(dir, entry.name);
 
-    if (entry.name.startsWith('@')) {
+    if (entry.name.startsWith('@') && !scope) {
       // Scope directory — recurse one level.
-      let scoped: fs.Dirent[];
-      try {
-        scoped = fs.readdirSync(pkgPath, { withFileTypes: true });
-      } catch {
-        continue;
-      }
-      for (const sub of scoped) {
-        if (!sub.isDirectory() && !sub.isSymbolicLink()) continue;
-        const subPath = path.join(pkgPath, sub.name);
-        const meta = readPackageMeta(subPath, `${entry.name}/${sub.name}`);
-        if (meta) packages.push(meta);
-      }
-    } else {
-      const meta = readPackageMeta(pkgPath, entry.name);
-      if (meta) packages.push(meta);
+      discoverInto(pkgPath, packages, visited, depth, entry.name);
+      continue;
     }
-  }
 
-  return packages;
+    const meta = readPackageMeta(pkgPath, scope ? `${scope}/${entry.name}` : entry.name);
+    if (!meta) continue;
+
+    // Dedupe by real path — pnpm links can surface the same package twice.
+    let real = pkgPath;
+    try {
+      real = fs.realpathSync(pkgPath);
+    } catch { /* keep pkgPath */ }
+    if (visited.has(real)) continue;
+    visited.add(real);
+    packages.push(meta);
+
+    // Recurse into nested node_modules inside this package.
+    discoverInto(path.join(pkgPath, 'node_modules'), packages, visited, depth + 1);
+  }
 }
 
 function readPackageMeta(pkgPath: string, fallbackName: string): PackageMeta | null {
@@ -107,6 +119,7 @@ export async function scan(nodeModulesDir: string, opts: ScanOptions = {}): Prom
       // No lock file — dependency_confusion rule will skip.
     }
   }
+  context.projectDir ??= path.dirname(nodeModulesDir);
 
   // Set up a default registry fetcher if none provided.
   if (!context.fetchRegistryMeta) {
@@ -116,16 +129,26 @@ export async function scan(nodeModulesDir: string, opts: ScanOptions = {}): Prom
   const packages = discoverPackages(nodeModulesDir);
   const findings: Finding[] = [];
 
-  for (const pkg of packages) {
-    for (const rule of rules) {
-      try {
-        const results = await rule.check(pkg, context);
-        findings.push(...results);
-      } catch (e) {
-        // A rule error shouldn't abort the whole scan.
-        process.stderr.write(`chainwatch: rule ${rule.id} error on ${pkg.name}: ${(e as Error).message}\n`);
-      }
-    }
+  // Packages are independent — run them through a small concurrency pool so
+  // registry-backed rules (suspicious_publish) don't serialize N HTTP calls.
+  const POOL = 8;
+  for (let i = 0; i < packages.length; i += POOL) {
+    const chunk = packages.slice(i, i + POOL);
+    const chunkResults = await Promise.all(
+      chunk.map(async (pkg) => {
+        const out: Finding[] = [];
+        for (const rule of rules) {
+          try {
+            out.push(...(await rule.check(pkg, context)));
+          } catch (e) {
+            // A rule error shouldn't abort the whole scan.
+            process.stderr.write(`chainwatch: rule ${rule.id} error on ${pkg.name}: ${(e as Error).message}\n`);
+          }
+        }
+        return out;
+      }),
+    );
+    for (const f of chunkResults) findings.push(...f);
   }
 
   // Filter by min severity and sort by severity descending.
@@ -140,23 +163,59 @@ export async function scan(nodeModulesDir: string, opts: ScanOptions = {}): Prom
   };
 }
 
-/** Default registry fetcher — hits registry.npmjs.org. Cached per session. */
+/** Default registry fetcher — hits registry.npmjs.org. Cached per session.
+ *  Uses https.request rather than fetch so no undici keep-alive socket is left
+ *  closing when the CLI exits (a Windows process.exit race → 0xC0000409). */
 function makeDefaultFetcher(): (name: string) => Promise<RegistryMeta | null> {
   const cache = new Map<string, RegistryMeta | null>();
   return async (name: string) => {
     if (cache.has(name)) return cache.get(name) ?? null;
-    try {
-      const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}`);
-      if (!res.ok) {
-        cache.set(name, null);
-        return null;
-      }
-      const data = (await res.json()) as RegistryMeta;
-      cache.set(name, data);
-      return data;
-    } catch {
-      cache.set(name, null);
-      return null;
-    }
+    const meta = await fetchRegistryMeta(name);
+    cache.set(name, meta);
+    return meta;
   };
+}
+
+async function fetchRegistryMeta(name: string): Promise<RegistryMeta | null> {
+  const { request } = await import('node:https');
+  return new Promise((resolve) => {
+    const req = request(
+      `https://registry.npmjs.org/${encodeURIComponent(name)}`,
+      { headers: { Accept: 'application/json' }, agent: false },
+      (res) => {
+        if (res.statusCode !== 200) {
+          res.resume();
+          resolve(null);
+          return;
+        }
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(c));
+        res.on('end', () => {
+          try {
+            const data = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
+              name?: string;
+              /** npm's real field name is `time`, not `times`. */
+              time?: Record<string, string>;
+              maintainers?: { name: string }[] | string[];
+              'dist-tags'?: Record<string, string>;
+            };
+            resolve({
+              name: data.name ?? name,
+              times: data.time ?? {},
+              maintainers: (data.maintainers ?? []).map((m) =>
+                typeof m === 'string' ? m : m.name,
+              ),
+              'dist-tags': data['dist-tags'] ?? {},
+            });
+          } catch {
+            resolve(null);
+          }
+        });
+        res.on('error', () => resolve(null));
+      },
+    );
+    req.setTimeout(10_000, () => req.destroy());
+    req.on('error', () => resolve(null));
+    req.end();
+  });
 }

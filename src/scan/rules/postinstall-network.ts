@@ -72,6 +72,18 @@ export const postinstallNetwork: Rule = {
       }
     }
 
+    // Files the install scripts actually invoke (e.g. `node install.js`) get
+    // HIGH severity; network code elsewhere in the package is only MEDIUM —
+    // plenty of legit packages have a postinstall AND http code (telemetry,
+    // download mirrors), which used to FP as HIGH.
+    const referenced = new Set<string>();
+    for (const scriptName of installScripts) {
+      const body = scripts[scriptName] ?? '';
+      for (const m of body.matchAll(/([\w./-]+\.(?:js|mjs|cjs|ts))/g)) {
+        referenced.add(m[1]!.replace(/^\.\//, ''));
+      }
+    }
+
     // Check JS source files referenced by or co-located with install scripts.
     const sourceFiles = collectSourceFiles(meta.path);
     for (const file of sourceFiles) {
@@ -82,11 +94,15 @@ export const postinstallNetwork: Rule = {
       if (JS_NETWORK_RE.test(content)) {
         const match = content.match(JS_NETWORK_RE);
         const matchStr = match?.[0] ?? '';
+        const relNorm = relFile.replace(/\\/g, '/');
+        const isInstallFile = referenced.has(relNorm) || referenced.has(`./${relNorm}`);
         findings.push({
           rule: 'postinstall_network',
-          severity: 'high',
+          severity: isInstallFile ? 'high' : 'medium',
           package: pkgRef,
-          description: `Install-time source file makes network call (${matchStr})`,
+          description: isInstallFile
+            ? `Install script file makes network call (${matchStr})`
+            : `Package with install scripts contains network code (${matchStr})`,
           file: `${relFile}:${lineOf(content, matchStr)}`,
           evidence: evidenceAround(content, matchStr),
         });

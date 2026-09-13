@@ -11,7 +11,7 @@
  */
 
 import type { Command } from 'commander';
-import { syncFindings, detectRepoName } from '../../sync/client.js';
+import { syncFindings, detectRepoName, closeNetworkConnections } from '../../sync/client.js';
 import type { Finding } from '../../scan/finding.js';
 
 export function registerSync(program: Command): void {
@@ -68,14 +68,23 @@ async function runSync(opts: SyncCliOpts): Promise<void> {
   const content = readFileSync(findingsFile, 'utf8');
   const data = JSON.parse(content) as { findings: Finding[]; run_id: string; timestamp: string };
 
-  let findings = data.findings;
+  const findings = data.findings;
   if (opts.since) {
     const sinceDate = new Date(opts.since);
-    findings = findings.filter(() => new Date(data.timestamp) >= sinceDate);
+    if (Number.isNaN(sinceDate.getTime())) {
+      console.error(`Invalid --since date "${opts.since}".`);
+      process.exit(1);
+    }
+    // Findings don't carry individual timestamps — the scan as a whole does.
+    // If the scan predates --since, there's nothing to send.
+    if (new Date(data.timestamp) < sinceDate) {
+      console.log(`Last scan (${data.timestamp}) predates --since ${opts.since}. Nothing to sync.`);
+      process.exit(0);
+    }
   }
 
   if (findings.length === 0) {
-    console.log('No findings to sync (all filtered out).');
+    console.log('No findings to sync.');
     process.exit(0);
   }
 
@@ -91,8 +100,10 @@ async function runSync(opts: SyncCliOpts): Promise<void> {
     console.log('  Skipped (no API key configured).');
   } else if (result.error) {
     console.error(`  Failed: ${result.error}`);
+    await closeNetworkConnections();
     process.exit(1);
   } else {
     console.log(`  ✓ Synced ${result.ingested} findings to cloud.`);
   }
+  await closeNetworkConnections();
 }

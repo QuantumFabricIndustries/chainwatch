@@ -15,10 +15,15 @@ CREATE TABLE IF NOT EXISTS api_keys (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id  UUID REFERENCES workspaces(id) ON DELETE CASCADE,
   key_hash      TEXT NOT NULL UNIQUE,  -- bcrypt of the actual key (never store raw)
+  key_sha256    TEXT UNIQUE,           -- sha256 lookup index (O(1) auth; bcrypt still verifies)
   label         TEXT,                  -- e.g. "ci-prod", "dev-mike"
   last_used_at  TIMESTAMPTZ,
   created_at    TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- For databases created before key_sha256 existed.
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS key_sha256 TEXT UNIQUE;
+CREATE INDEX IF NOT EXISTS api_keys_sha256 ON api_keys(key_sha256);
 
 CREATE TABLE IF NOT EXISTS repos (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),

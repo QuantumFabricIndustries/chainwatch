@@ -36,7 +36,9 @@ export const dependencyConfusion: Rule = {
     const scope = meta.name.split('/')[0]!; // @org
 
     // Check .npmrc for a private registry configured for this scope.
-    const npmrcPath = path.join(process.cwd(), '.npmrc');
+    // Resolved relative to the scanned project, not wherever chainwatch ran.
+    const projectDir = ctx?.projectDir ?? process.cwd();
+    const npmrcPath = path.join(projectDir, '.npmrc');
     let hasPrivateRegistry = false;
     let privateRegistry = '';
     try {

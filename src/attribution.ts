@@ -7,14 +7,27 @@
  * package itself.
  *
  * Attribution uses two strategies:
- *  1. Fast path: regex match for `node_modules/<pkg>/` in the file path.
+ *  1. Fast path: last `node_modules/<pkg>/` segment in the file path
+ *     (handles nested node_modules and pnpm's .pnpm layout).
  *  2. Slow path: prefix match against the PackageResolver's symlink-resolved
- *     path map (handles `file:` deps, pnpm, workspace links).
+ *     path map (handles `file:` deps and workspace links).
  */
 
+import { fileURLToPath } from 'node:url';
+import * as path from 'node:path';
 import type { PackageResolver } from './resolver.js';
+import { packageNameFromPath } from './resolver.js';
 
-const SELF_RE = /[\\/]chainwatch[\\/](?:src|dist|node_modules[\\/]chainwatch)[\\/]/;
+// ChainWatch's own module directory — used to skip our own frames. Anchored to
+// the actual module location so a USER project that happens to live in a
+// directory named "chainwatch" is still attributed correctly.
+const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
+const SELF_RE = /[\\/]node_modules[\\/]chainwatch[\\/]/;
+
+// The default stackTraceLimit (10) is too shallow for attribution through
+// promise chains and framework internals. Raising it here is process-wide but
+// harmless — Error.stack strings just get longer.
+if (Error.stackTraceLimit < 50) Error.stackTraceLimit = 50;
 
 export interface Attribution {
   /** Package name (`@scope/name` or `name`), or `<entry>` / `<unknown>`. */
@@ -38,6 +51,11 @@ function captureCallSites(): NodeJS.CallSite[] {
   return sites ?? [];
 }
 
+function isSelfFile(file: string): boolean {
+  const f = file.replace(/\//g, path.sep);
+  return f.startsWith(SELF_DIR + path.sep) || SELF_RE.test(file);
+}
+
 /**
  * Resolve the package responsible for the current call.
  *
@@ -56,7 +74,7 @@ export function attributeCall(resolver?: PackageResolver): Attribution {
     // Skip Node core modules (node:fs, internal/...).
     if (file.startsWith('node:') || file.includes('internal/')) continue;
     // Skip ChainWatch's own source.
-    if (SELF_RE.test(file)) continue;
+    if (isSelfFile(file)) continue;
 
     // Track the first non-core, non-self file as the entry candidate.
     if (!entryFile) entryFile = file;
@@ -69,12 +87,8 @@ export function attributeCall(resolver?: PackageResolver): Attribution {
       }
     }
 
-    // Fast path: regex match for node_modules in the path.
-    const m = file.match(/[\\/]node_modules[\\/](?:@([^\\/]+)[\\/])?([^\\/]+)/);
-    if (m) {
-      const scope = m[1];
-      const name = m[2] ?? '';
-      const pkg = scope ? `@${scope}/${name}` : name;
+    const pkg = packageNameFromPath(file);
+    if (pkg) {
       return { package: pkg, file, stack: serialize(sites) };
     }
   }
@@ -89,6 +103,7 @@ export function attributeCall(resolver?: PackageResolver): Attribution {
 
 function serialize(sites: NodeJS.CallSite[]): string {
   return sites
+    .slice(0, 40)
     .map((s) => `    at ${s.toString()}`)
     .join('\n');
 }

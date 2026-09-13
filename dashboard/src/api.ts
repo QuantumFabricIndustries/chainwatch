@@ -72,6 +72,19 @@ async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function apiDelete<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, { method: 'DELETE', headers: authHeaders() });
+  if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
+  return res.json() as Promise<T>;
+}
+
+export interface ApiKeyInfo {
+  id: string;
+  label: string | null;
+  last_used_at: string | null;
+  created_at: string;
+}
+
 export const api = {
   getOverview: () => apiGet<OverviewData>('/dashboard/overview'),
   getRepos: () => apiGet<{ repos: Repo[] }>('/dashboard/repos'),
@@ -81,8 +94,9 @@ export const api = {
     apiPost<{ alert: any }>('/alerts', { type, config, min_severity: minSeverity }),
   testAlert: (type: string, config: object) =>
     apiPost<{ success: boolean; message: string }>('/alerts/test', { type, config }),
-  getApiKeys: () => apiGet<{ keys: any[] }>('/api-keys'),
+  getApiKeys: () => apiGet<{ keys: ApiKeyInfo[] }>('/api-keys'),
   createApiKey: (label: string) => apiPost<{ api_key: string }>('/api-keys', { label }),
+  deleteApiKey: (id: string) => apiDelete<{ deleted: boolean }>(`/api-keys/${id}`),
 };
 
 /** Create a WebSocket connection for the live event feed. */

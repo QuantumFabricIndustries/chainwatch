@@ -18,6 +18,8 @@ import * as os from 'node:os';
 import { attributeCall } from '../attribution.js';
 import { PackageResolver } from '../resolver.js';
 import { normalizeDetail } from './store.js';
+import { injectWorkerPreload, unpatchWorker } from '../intercept/worker.js';
+import { extractHost } from '../intercept/host.js';
 import type { BaselineEvent, BaselineSignal } from './types.js';
 
 const require = createRequire(import.meta.url);
@@ -47,16 +49,25 @@ export class BaselineRecorder {
   install(): void {
     if (this.installed) return;
     this.installed = true;
+    // Wire the module-level reference so the wrappers can reach this recorder —
+    // without this, record() silently no-ops when install() is called directly
+    // instead of via startRecording().
+    recorder = this;
     this.resolver.scan();
     this.wrapFs();
     this.wrapNet();
     this.wrapChildProcess();
+    // Workers get a fresh module registry — inject the recorder preload into
+    // their execArgv so recording covers them too.
+    injectWorkerPreload();
   }
 
   /** Remove wrappers, restore originals. */
   uninstall(): void {
     if (!this.installed) return;
     this.installed = false;
+    if (recorder === this) recorder = null;
+    unpatchWorker();
     for (const [key, fn] of Object.entries(this.originals)) {
       const [modName, fnName] = key.split('.');
       if (!fnName) continue;
@@ -230,22 +241,4 @@ export function stopRecording(rec: BaselineRecorder): BaselineRecorder {
   return rec;
 }
 
-// ─── Host extraction (same logic as Phase 1 net interceptor) ────────────────
 
-function extractHost(args: any[]): string {
-  const a = args[0];
-  if (!a) return '';
-  if (typeof a === 'string') {
-    try {
-      return new URL(a).hostname || a;
-    } catch {
-      return a;
-    }
-  }
-  if (a instanceof URL) return a.hostname;
-  if (typeof a === 'object') {
-    return a.hostname || a.host || '';
-  }
-  if (typeof a === 'number' && typeof args[1] === 'string') return args[1];
-  return '';
-}

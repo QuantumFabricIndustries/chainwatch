@@ -74,6 +74,14 @@ export class Engine {
     return { action, event };
   }
 
+  /**
+   * Dedupe: identical (package, signal, detail) events within this window are
+   * merged into the original event with an `occurrences` counter instead of
+   * flooding the log. Worms retrying the same call produce ONE event.
+   */
+  private static readonly DEDUPE_MS = 60_000;
+  private readonly recentEvents = new Map<string, ChainWatchEvent>();
+
   private record(
     signal: SignalType,
     severity: Severity,
@@ -82,10 +90,34 @@ export class Engine {
     attr: { package: string; file: string; stack: string },
     action: Action,
   ): ChainWatchEvent {
+    const key = `${attr.package}\x00${signal}\x00${stableKey(detail)}`;
+    const existing = this.recentEvents.get(key);
+    if (existing && Date.now() - existing.ts < Engine.DEDUPE_MS) {
+      const n = ((existing.detail['occurrences'] as number) ?? 1) + 1;
+      existing.detail['occurrences'] = n;
+      existing.ts = Date.now();
+      this.notify(existing);
+      return existing;
+    }
+
     const event = makeEvent(attr.package, signal, severity, score, detail, attr.stack, action);
+    this.recentEvents.set(key, event);
     this.events.push(event);
-    for (const cb of this.listeners) cb(event);
+    this.notify(event);
     return event;
+  }
+
+  /** Notify listeners, isolating failures so a bad callback can't break the watched process. */
+  private notify(event: ChainWatchEvent): void {
+    for (const cb of this.listeners) {
+      try {
+        cb(event);
+      } catch (err) {
+        // A throwing listener must never propagate into the watched process —
+        // it would surface inside e.g. fs.readFileSync and corrupt app state.
+        process.stderr.write(`chainwatch: event listener error: ${(err as Error).message}\n`);
+      }
+    }
   }
 
   install(): void {
@@ -102,6 +134,12 @@ export class Engine {
     this.installed = false;
     uninstallInterceptors(this);
   }
+}
+
+/** Stable dedupe key for event detail — excludes volatile scorer fields. */
+function stableKey(detail: Record<string, unknown>): string {
+  const keys = Object.keys(detail).filter((k) => k !== 'chainScore' && k !== 'occurrences').sort();
+  return keys.map((k) => `${k}=${JSON.stringify(detail[k])}`).join('|');
 }
 
 // Late-bound installer refs (set by intercept/index.ts on import).

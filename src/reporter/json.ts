@@ -3,6 +3,7 @@
  */
 
 import type { Finding } from '../scan/finding.js';
+import { CW_VERSION } from '../version.js';
 
 export interface JsonReport {
   scanner: 'chainwatch';
@@ -20,7 +21,7 @@ export function formatJson(
 ): string {
   const report: JsonReport = {
     scanner: 'chainwatch',
-    version: '0.2.0',
+    version: CW_VERSION,
     timestamp: new Date().toISOString(),
     packageCount: pkgCount,
     scanMs,

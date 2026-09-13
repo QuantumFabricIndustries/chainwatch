@@ -17,6 +17,39 @@ const SEVERITY_EMOJI: Record<string, string> = {
 };
 
 /**
+ * SSRF guard — alert/webhook URLs must be public HTTPS endpoints.
+ * Blocks localhost, RFC-1918/loopback/link-local, and cloud metadata hosts.
+ */
+export function assertUrlAllowed(rawUrl: string): void {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    throw new Error('Invalid URL');
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new Error('Webhook URL must be http(s)');
+  }
+  const host = url.hostname.toLowerCase();
+  const blocked =
+    host === 'localhost' ||
+    host === 'metadata.google.internal' ||
+    /^127\./.test(host) ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^169\.254\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
+    /^0\./.test(host) ||
+    host === '::1' ||
+    host === '[::1]' ||
+    host.endsWith('.internal') ||
+    host.endsWith('.local');
+  if (blocked) {
+    throw new Error(`Webhook URL host "${host}" is not allowed (private/internal address)`);
+  }
+}
+
+/**
  * Check alerts for a batch of findings and dispatch to configured channels.
  * Called fire-and-forget from the events handler.
  */
@@ -48,6 +81,7 @@ export async function checkAlerts(workspaceId: string, findings: FindingRow[]): 
 async function sendSlackAlert(alert: AlertConfig, findings: FindingRow[]): Promise<void> {
   const url = alert.config.url;
   if (!url) return;
+  assertUrlAllowed(url);
 
   const blocks = [
     {
@@ -76,6 +110,7 @@ async function sendSlackAlert(alert: AlertConfig, findings: FindingRow[]): Promi
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ blocks }),
+    signal: AbortSignal.timeout(10_000),
   });
 
   if (!res.ok) {
@@ -88,6 +123,7 @@ async function sendWebhookAlert(alert: AlertConfig, findings: FindingRow[]): Pro
   const url = alert.config.url;
   const secret = alert.config.secret;
   if (!url) return;
+  assertUrlAllowed(url);
 
   const payload = JSON.stringify({
     event: 'chainwatch.findings',
@@ -108,7 +144,7 @@ async function sendWebhookAlert(alert: AlertConfig, findings: FindingRow[]): Pro
     headers['X-ChainWatch-Signature'] = `sha256=${signature}`;
   }
 
-  const res = await fetch(url, { method: 'POST', headers, body: payload });
+  const res = await fetch(url, { method: 'POST', headers, body: payload, signal: AbortSignal.timeout(10_000) });
   if (!res.ok) {
     throw new Error(`Webhook returned ${res.status}: ${await res.text()}`);
   }

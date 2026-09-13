@@ -93,6 +93,26 @@ chainwatch watch --log events.jsonl -- node server.js
 - `--baseline <file>` — baseline file to compare against (default: `.chainwatch/baseline.jsonl`)
 - `--drift-threshold <n>` — drift score to trigger alert (0–100, default: 40)
 - `--block-on-drift` — kill the process if drift score exceeds threshold
+- `--trust <pkgs>` — comma-separated packages that are logged but never blocked
+- `--allow <hosts>` — comma-separated extra allowlist hosts
+- `--sync` — push events to ChainWatch Cloud after the run
+
+### Configuration file
+
+`chainwatch.config.json` (or `.chainwatchrc.json`) in the project root — all
+keys optional, CLI flags take precedence:
+
+```json
+{
+  "trustedPackages": ["esbuild", "my-internal-tool"],
+  "networkAllowlist": ["npm.corp.example.com"],
+  "credentialPatterns": ["\\.pem$", "id_ed25519"],
+  "blockOn": "high",
+  "flagThreshold": 50,
+  "blockThreshold": 80,
+  "chainBlockThreshold": 75
+}
+```
 
 ### `chainwatch baseline record`
 
@@ -377,6 +397,11 @@ npm run dev                   # start dashboard on :5173
 
 ### Runtime interceptor (watch mode)
 
+ChainWatch wraps `fs` (+ `fs.promises`, `readdir`, `stat`), `net`, `tls`,
+`http`, `https`, `http2`, `dns` (+ `dns.promises`), `dgram`, `child_process`,
+the `fetch`/`WebSocket` globals, and `worker_threads` (workers get the preload
+injected — a fresh module registry can't bypass monitoring).
+
 ChainWatch wraps Node's module loader and core modules at startup. When a
 package calls `fs.readFileSync('~/.npmrc')`, ChainWatch:
 
@@ -392,9 +417,18 @@ the exfiltration completes.
 
 ### Static scanner (scan mode)
 
-The scanner discovers all packages in `node_modules`, then runs each detection
-rule against each package. Rules are independent functions — each can be tested
-in isolation. The scanner produces findings sorted by severity.
+The scanner discovers all packages in `node_modules` (including nested
+`node_modules` and pnpm's `.pnpm` layout), then runs each detection rule
+against each package. Rules are independent functions — each can be tested in
+isolation. The scanner produces findings sorted by severity.
+
+### Threat model
+
+ChainWatch runs **in the same process** as the code it watches — that's what
+makes behavioral attribution cheap and precise, but it means a sufficiently
+hostile package can patch over the wrappers or run code in a `vm` context the
+interceptors can't see. Treat `watch` as a strong tripwire, not a sandbox. For
+high-assurance isolation, run under `--experimental-permission` or a container.
 
 ## Development
 

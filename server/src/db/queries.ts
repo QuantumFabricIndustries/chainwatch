@@ -21,6 +21,8 @@ export interface ApiKey {
   id: string;
   workspace_id: string;
   key_hash: string;
+  /** sha256 of the raw key — indexed lookup column (bcrypt verifies after). */
+  key_sha256: string | null;
   label: string | null;
   last_used_at: Date | null;
   created_at: Date;
@@ -78,15 +80,22 @@ export async function getWorkspaceBySlug(slug: string): Promise<Workspace | null
 
 // ─── API key queries ────────────────────────────────────────────────────────
 
-export async function createApiKey(workspaceId: string, keyHash: string, label: string): Promise<ApiKey> {
+export async function createApiKey(
+  workspaceId: string,
+  keyHash: string,
+  label: string,
+  keySha256?: string,
+): Promise<ApiKey> {
   const rows = await sql<ApiKey[]>`
-    INSERT INTO api_keys (workspace_id, key_hash, label) VALUES (${workspaceId}, ${keyHash}, ${label})
+    INSERT INTO api_keys (workspace_id, key_hash, key_sha256, label)
+    VALUES (${workspaceId}, ${keyHash}, ${keySha256 ?? null}, ${label})
     RETURNING *`;
   return rows[0]!;
 }
 
-export async function getApiKeyByHash(keyHash: string): Promise<ApiKey | null> {
-  const rows = await sql<ApiKey[]>`SELECT * FROM api_keys WHERE key_hash = ${keyHash}`;
+/** O(1) key lookup by sha256 digest — replaces the per-key bcrypt table scan. */
+export async function getApiKeyBySha256(digest: string): Promise<ApiKey | null> {
+  const rows = await sql<ApiKey[]>`SELECT * FROM api_keys WHERE key_sha256 = ${digest}`;
   return rows[0] ?? null;
 }
 
@@ -94,12 +103,18 @@ export async function touchApiKey(keyId: string): Promise<void> {
   await sql`UPDATE api_keys SET last_used_at = NOW() WHERE id = ${keyId}`;
 }
 
-export async function listApiKeys(workspaceId: string): Promise<ApiKey[]> {
-  return sql<ApiKey[]>`SELECT id, workspace_id, label, last_used_at, created_at FROM api_keys WHERE workspace_id = ${workspaceId} ORDER BY created_at DESC`;
+/** Public-facing key record — never exposes hash material. */
+export type ApiKeySummary = Pick<ApiKey, 'id' | 'workspace_id' | 'label' | 'last_used_at' | 'created_at'>;
+
+export async function listApiKeys(workspaceId: string): Promise<ApiKeySummary[]> {
+  return sql<ApiKeySummary[]>`SELECT id, workspace_id, label, last_used_at, created_at FROM api_keys WHERE workspace_id = ${workspaceId} ORDER BY created_at DESC`;
 }
 
-export async function deleteApiKey(keyId: string): Promise<void> {
-  await sql`DELETE FROM api_keys WHERE id = ${keyId}`;
+export async function deleteApiKey(keyId: string, workspaceId: string): Promise<boolean> {
+  const rows = await sql`
+    DELETE FROM api_keys WHERE id = ${keyId} AND workspace_id = ${workspaceId}
+    RETURNING id`;
+  return rows.length > 0;
 }
 
 // ─── Repo queries ───────────────────────────────────────────────────────────
@@ -160,7 +175,7 @@ export async function getFindingTrend(workspaceId: string, days = 30): Promise<{
     FROM findings f
     JOIN repos r ON f.repo_id = r.id
     WHERE r.workspace_id = ${workspaceId}
-      AND f.created_at >= NOW() - INTERVAL '${days} days'
+      AND f.created_at >= NOW() - ${days} * INTERVAL '1 day'
     GROUP BY DATE(created_at)
     ORDER BY date`;
 }

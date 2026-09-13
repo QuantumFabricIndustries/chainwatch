@@ -20,8 +20,10 @@ import { collectSourceFiles, readFileSafe, evidenceAround, lineOf } from '../uti
 const HEX_RUN_RE = /\\x[0-9a-fA-F]{2}(?:\\x[0-9a-fA-F]{2}){9,}/; // 10+ consecutive \xNN
 const UNICODE_RUN_RE = /\\u[0-9a-fA-F]{4}(?:\\u[0-9a-fA-F]{4}){9,}/;
 const EVAL_COMPUTED_RE = /eval\s*\(\s*[^'")]+\s*\+/; // eval( with concatenation, not literal
+const EVAL_VAR_RE = /eval\s*\(\s*[A-Za-z_$][\w$]*(?:\.[\w$]+|\[[^\]]*\])*\s*\)/; // eval(someVar) — the common obfuscator shape
 const FUNCTION_CTOR_RE = /new\s+Function\s*\(\s*['"`]/;
 const ATOB_LAYERS_RE = /atob\s*\(\s*atob\s*\(/;
+const FROMCHARCODE_RUN_RE = /String\.fromCharCode\s*\((?:\s*\d+\s*,){4,}/; // 5+ char codes — string built from char codes
 const ESCAPE_RE = /\\x[0-9a-fA-F]{2}/g;
 
 export const obfuscationScore: Rule = {
@@ -49,6 +51,14 @@ export const obfuscationScore: Rule = {
       if (EVAL_COMPUTED_RE.test(content)) {
         score += 25;
         hits.push('eval() with computed string');
+      }
+      if (EVAL_VAR_RE.test(content)) {
+        score += 20;
+        hits.push('eval() of variable');
+      }
+      if (FROMCHARCODE_RUN_RE.test(content)) {
+        score += 20;
+        hits.push('String.fromCharCode run');
       }
       if (FUNCTION_CTOR_RE.test(content)) {
         score += 30;
