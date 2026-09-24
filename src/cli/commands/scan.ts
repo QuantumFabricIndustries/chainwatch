@@ -7,14 +7,14 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { scan, type ScanOptions } from '../../scan/scanner.js';
 import type { Severity } from '../../scan/finding.js';
-import { formatPretty, formatJson, formatSarif, exitCodeFor } from '../../reporter/index.js';
+import { formatPretty, formatJson, formatSarif, formatQf, exitCodeFor } from '../../reporter/index.js';
 import { syncFindings, detectRepoName, closeNetworkConnections } from '../../sync/client.js';
 
 export function registerScan(program: Command): void {
   program
     .command('scan [dir]')
     .description('Statically scan node_modules for supply-chain risks')
-    .option('-o, --output <fmt>', 'Output format: pretty | json | sarif', 'pretty')
+    .option('-o, --output <fmt>', 'Output format: pretty | json | sarif | qf', 'pretty')
     .option('-s, --severity <lvl>', 'Minimum severity: low|medium|high|critical', 'medium')
     .option('--fail-on <lvl>', 'Exit 1 if any finding >= this severity', 'high')
     .option('--sarif-output <file>', 'Write SARIF output to this file (in addition to stdout)')
@@ -39,6 +39,9 @@ export function registerScan(program: Command): void {
           break;
         case 'sarif':
           output = formatSarif(result.findings);
+          break;
+        case 'qf':
+          output = formatQf(result.findings);
           break;
         default:
           output = formatPretty(result.findings, result.packageCount, result.scanMs, {

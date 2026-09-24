@@ -9,3 +9,5 @@ export { formatJson } from './json.js';
 export type { JsonReport } from './json.js';
 export { formatSarif, generateSarifObject, getRuleId } from './sarif.js';
 export type { SarifReport } from './sarif.js';
+export { formatQf, generateQfObject } from './qf.js';
+export type { QfReport } from './qf.js';
