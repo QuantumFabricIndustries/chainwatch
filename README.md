@@ -1,35 +1,54 @@
 # ChainWatch
 
-npm supply-chain runtime watchdog. Behavioral anomaly detection for installed
-packages — watches what packages **do**, not what they look like. Built to catch
-the 2026 worm wave (Shai-Hulud, ChainDrop) that ran with zero CVEs assigned
-during active exploitation.
+**Runtime supply-chain watchdog for npm packages.**
 
-## Why
+ChainWatch monitors your installed npm dependencies at runtime — detecting behavioral anomalies, unauthorized network calls, file system tampering, and supply-chain compromise the moment they happen, not after the fact.
 
-Signature scanners look at what a package **is**. ChainWatch looks at what a
-package **does**. A package reading `~/.npmrc` isn't necessarily bad. A package
-making a network call isn't necessarily bad. But **read credentials → enumerate
-tokens → POST to an unknown host**, in that order, is unambiguously a worm.
-That sequence is exactly what Shai-Hulud and ChainDrop do, and it's exactly what
-signature scanners miss because none of the individual steps trips a signature.
+Most supply-chain attacks are caught too late: after `npm install`, after the CI run, after the build ships. ChainWatch sits in your runtime and watches what packages actually do, not just what their code says they'll do.
 
-## Install
+---
 
-```bash
-npm install -g chainwatch
+## What It Detects
+
+- **Unauthorized network egress** — packages phoning home to unknown endpoints
+- **File system anomalies** — reads/writes outside expected package scope
+- **Process spawning** — unexpected child processes launched by dependencies
+- **Behavioral drift** — packages behaving differently between environments
+- **Integrity violations** — installed files that don't match published checksums
+
+---
+
+## How It Works
+
+ChainWatch hooks into Node.js at the module level, wrapping native APIs to intercept and analyze behavior in real time. Each package gets a behavioral profile. Deviations from that profile trigger alerts — configurable from warn to block.
+
+```
+npm install → ChainWatch baseline → runtime monitoring → anomaly alerts
 ```
 
-Or use without installing:
+---
+
+## Quick Start
 
 ```bash
-npx chainwatch scan
-npx chainwatch watch -- node server.js
+npm install chainwatch
 ```
 
-## Commands
+```typescript
+import { ChainWatch } from 'chainwatch';
 
-### `chainwatch scan [dir]`
+const watcher = new ChainWatch({
+  policy: 'strict',       // warn | strict | block
+  allowlist: ['axios'],   // packages with known network needs
+  output: 'console'       // console | file | webhook
+});
+
+watcher.start();
+```
+
+---
+
+## Configuration
 
 Statically scan `node_modules` for supply-chain risks. Six detection rules:
 
@@ -56,29 +75,17 @@ chainwatch scan --output sarif
 chainwatch scan --fail-on high
 ```
 
-**Options:**
-- `-o, --output <fmt>` — `pretty` (default) | `json` | `sarif`
-- `-s, --severity <lvl>` — minimum severity to show (default: `medium`)
-- `--fail-on <lvl>` — exit code 1 if any finding >= this severity (default: `high`)
-- `--no-color` — disable color output (for CI)
-- `-q, --quiet` — only print findings, no progress
+---
 
-### `chainwatch watch -- <command>`
+## Why Runtime vs. Static Analysis
 
-Run any command under live runtime monitoring. Reuses the Phase 1 interceptor —
-wraps Node's core modules (`fs`, `net`, `http`, `https`, `dns`, `child_process`)
-and attributes every suspicious call to the package that made it via call-stack
-resolution.
+Static scanners (Snyk, Dependabot, Socket) analyze code before it runs. That's necessary but not sufficient — obfuscated payloads, conditional logic, and time-delayed attacks all bypass static analysis. ChainWatch catches what static tools miss by watching actual behavior.
 
-```bash
-# Watch a server
-chainwatch watch -- node server.js
+---
 
-# Watch tests
-chainwatch watch -- npm test
+## Built By
 
-# Block on HIGH+ (default: warn only, block on CRITICAL)
-chainwatch watch --block -- node server.js
+[Quantum Fabric Industries](https://github.com/QuantumFabricIndustries) — AI infrastructure, cybersecurity tooling, and audio DSP research.
 
 # Log events to a file
 chainwatch watch --log events.jsonl -- node server.js

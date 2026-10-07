@@ -1,0 +1,51 @@
+name: ChainWatch Supply Chain Scanner
+description: >
+  Scans node_modules for supply chain threats — malicious postinstall scripts,
+    credential harvesting, network exfiltration, dependency confusion, and
+      behavioral drift from baseline.
+
+      author: Quantum Fabric Industries
+
+      inputs:
+        scan-dir:
+            description: Directory to scan (default is ./node_modules)
+                default: ./node_modules
+                  severity:
+                      description: Minimum severity to report (low|medium|high|critical)
+                          default: medium
+                            fail-on:
+                                description: Exit code 1 if any finding at this severity or higher
+                                    default: high
+                                      baseline-file:
+                                          description: Path to baseline JSONL for drift detection (optional)
+                                              default: ''
+                                                drift-threshold:
+                                                    description: Drift score to trigger a finding (0–100)
+                                                        default: '40'
+                                                          sarif-output:
+                                                              description: Write SARIF output to this file (for GitHub Security tab)
+                                                                  default: chainwatch-results.sarif
+                                                                    upload-sarif:
+                                                                        description: Upload SARIF to GitHub Security tab automatically
+                                                                            default: 'true'
+                                                                              install-command:
+                                                                                  description: Command to run before scanning (e.g. npm ci)
+                                                                                      default: npm ci
+
+                                                                                      outputs:
+                                                                                        findings-count:
+                                                                                            description: Total number of findings
+                                                                                              critical-count:
+                                                                                                  description: Number of critical findings
+                                                                                                    high-count:
+                                                                                                        description: Number of high findings
+                                                                                                          sarif-file:
+                                                                                                              description: Path to the SARIF output file
+                                                                                                              
+                                                                                                              runs:
+                                                                                                                using: node20
+                                                                                                                  main: action/dist/index.js
+                                                                                                                  
+                                                                                                                  branding:
+                                                                                                                    icon: shield
+                                                                                                                      color: red
