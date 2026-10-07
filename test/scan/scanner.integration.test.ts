@@ -15,7 +15,9 @@ describe('Scanner integration', () => {
     expect(names).toContain('fake-obfuscated');
     expect(names).toContain('lodahs'); // fake-typosquat fixture has name "lodahs"
     expect(names).toContain('@myorg/internal-lib'); // fake-dependency-confusion fixture
-    expect(packages.length).toBeGreaterThanOrEqual(7);
+    expect(names).toContain('fake-malfex-stealer');
+    expect(names).toContain('fake-malfex-rat');
+    expect(packages.length).toBeGreaterThanOrEqual(9);
   });
 
   it('produces findings for malicious fixtures but not clean ones', async () => {
@@ -39,6 +41,9 @@ describe('Scanner integration', () => {
     expect(pkgNames.some((p) => p.startsWith('fake-obfuscated'))).toBe(true);
     // Typosquat fixture has name "lodahs" — should be flagged by suspicious_publish.
     expect(pkgNames.some((p) => p.startsWith('lodahs'))).toBe(true);
+    // MALFEX fixtures: stealer + RAT must produce findings.
+    expect(pkgNames.some((p) => p.startsWith('fake-malfex-stealer'))).toBe(true);
+    expect(pkgNames.some((p) => p.startsWith('fake-malfex-rat'))).toBe(true);
   });
 
   it('sorts findings by severity descending', async () => {

@@ -31,6 +31,29 @@ const CRED_PATTERNS: { re: RegExp; label: string }[] = [
   { re: /\.netrc/, label: '~/.netrc' },
   { re: /%APPDATA%[\\/]npm/, label: '%APPDATA%\\npm' },
   { re: /%USERPROFILE%[\\/]\.ssh/, label: '%USERPROFILE%\\.ssh' },
+
+  // ── Stealer-shopping-list targets (MALFEX-class RAT/stealer campaigns) ──
+  // These are file paths no legitimate library reads — a package touching
+  // them is harvesting, not configuring.
+  // Discord token store
+  { re: /discord[^\n'"]{0,80}(Local[ _]Storage|leveldb)/i,
+    label: 'Discord token store (Local Storage/leveldb)' },
+  { re: /(discordcanary|discordptb)[^\n'"]{0,80}leveldb/i,
+    label: 'Discord canary/PTB token store' },
+  // Chromium credential databases (exact filenames — distinctive)
+  { re: /(Login Data|Web Data|Local State|Network[\\/]Cookies)/,
+    label: 'browser credential database' },
+  // Firefox creds
+  { re: /(logins\.json|key4\.db|cert9\.db)/, label: 'Firefox credential store' },
+  // Crypto wallets — files + extension IDs
+  { re: /(wallet\.dat|electrum[\\/]|exodus[\\/]|atomic[\\/]wallet|nkbihfbeogaeaoehlefnkodbefgpgnn)/i,
+    label: 'crypto wallet data' },
+  // FTP / remote-access credential stores
+  { re: /filezilla[\\/]+sitemanager/i, label: 'FileZilla saved credentials' },
+  { re: /winscp\.ini/i, label: 'WinSCP saved sessions' },
+  // Telegram session
+  { re: /Telegram[ _]Desktop[\\/]+tdata|\btdata[\\/]+(D877|key_datas)/i,
+    label: 'Telegram session data (tdata)' },
 ];
 
 const ALLOWLIST = new Set(['npm', 'yarn', 'pnpm', 'config', 'rc', 'dotenv']);

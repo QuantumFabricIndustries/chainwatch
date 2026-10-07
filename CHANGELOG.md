@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — detection coverage
+
+- `credential_file_access` now flags stealer-shopping-list paths, not just
+  dotfile creds: Discord token stores (`Local Storage/leveldb`), Chromium
+  credential databases (`Login Data`, `Web Data`, `Local State`,
+  `Network/Cookies`), Firefox stores (`logins.json`, `key4.db`, `cert9.db`),
+  crypto wallets (`wallet.dat`, Electrum, Exodus, MetaMask extension vault),
+  FileZilla/WinSCP saved credentials, and Telegram `tdata` sessions. Targets
+  RAT/stealer campaigns like MALFEX that harvest these stores on install.
+- MALFEX regression fixtures (`fake-malfex-stealer`, `fake-malfex-rat`)
+  replaying the campaign's documented shapes: modular credential harvesters,
+  HTTPS exfil to a C2, scheduled-task persistence, and a beacon-and-eval RAT
+  loop.
+
 ### Fixed — runtime interception
 
 - `watch --block` / `--block-on` now actually reach the watched process — the

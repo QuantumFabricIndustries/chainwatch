@@ -37,7 +37,7 @@ Statically scan `node_modules` for supply-chain risks. Six detection rules:
 |------|----------------|----------|
 | `postinstall_network` | Install scripts that make network calls | HIGH |
 | `postinstall_shell` | Install scripts that spawn shells or run `npm publish` | CRITICAL |
-| `credential_file_access` | Source code that reads `~/.npmrc`, `.env`, SSH keys, AWS creds | HIGH |
+| `credential_file_access` | Source code that reads `~/.npmrc`, `.env`, SSH keys, AWS creds, Discord token stores, browser credential DBs, crypto wallets, FTP/Telegram sessions | HIGH |
 | `obfuscation_score` | Hex-encoded eval, `Function()` constructor, nested `atob()` | MEDIUM–HIGH |
 | `suspicious_publish` | Version published < 48hr ago by a new maintainer; typosquat names | MEDIUM–CRITICAL |
 | `dependency_confusion` | Scoped package resolved from public registry instead of private | CRITICAL |
