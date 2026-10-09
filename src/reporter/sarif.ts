@@ -166,6 +166,12 @@ function buildRules(findings: Finding[]): SarifRule[] {
   });
 }
 
+/** "@scope/name@1.2.3" → "@scope/name". */
+function packageName(ref: string): string {
+  const at = ref.lastIndexOf('@');
+  return at > 0 ? ref.slice(0, at) : ref;
+}
+
 function toSarifResult(f: Finding): SarifResult {
   const ruleId = getRuleId(f.rule);
   const file = f.file ?? '';
@@ -174,7 +180,11 @@ function toSarifResult(f: Finding): SarifResult {
   // URIs are slash-separated.
   const colon = file.lastIndexOf(':');
   const hasLine = colon > 0 && /^\d+$/.test(file.slice(colon + 1));
-  const uri = (hasLine ? file.slice(0, colon) : file).replace(/\\/g, '/');
+  // Code scanning rejects a result with no artifact location, so package-level
+  // findings (typosquat, known-bad version) point at the package's manifest.
+  const uri = file
+    ? (hasLine ? file.slice(0, colon) : file).replace(/\\/g, '/')
+    : `node_modules/${packageName(f.package)}/package.json`;
   const startLine = hasLine ? parseInt(file.slice(colon + 1), 10) : undefined;
 
   return {

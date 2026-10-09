@@ -24796,12 +24796,16 @@ function buildRules(findings) {
     };
   });
 }
+function packageName(ref) {
+  const at = ref.lastIndexOf("@");
+  return at > 0 ? ref.slice(0, at) : ref;
+}
 function toSarifResult(f) {
   const ruleId = getRuleId(f.rule);
   const file = f.file ?? "";
   const colon = file.lastIndexOf(":");
   const hasLine = colon > 0 && /^\d+$/.test(file.slice(colon + 1));
-  const uri = (hasLine ? file.slice(0, colon) : file).replace(/\\/g, "/");
+  const uri = file ? (hasLine ? file.slice(0, colon) : file).replace(/\\/g, "/") : `node_modules/${packageName(f.package)}/package.json`;
   const startLine = hasLine ? parseInt(file.slice(colon + 1), 10) : void 0;
   return {
     ruleId,
@@ -25076,7 +25080,7 @@ async function run() {
       if (inputs.allowPackages.length > 0) {
         const allowed = new Set(inputs.allowPackages);
         const before = findings.length;
-        findings = findings.filter((f) => !allowed.has(packageName(f.package)));
+        findings = findings.filter((f) => !allowed.has(packageName2(f.package)));
         if (before !== findings.length) {
           core3.info(`allow-packages: suppressed ${before - findings.length} findings`);
         }
@@ -25118,7 +25122,7 @@ async function run() {
     core3.setFailed(`ChainWatch action failed: ${err.message}`);
   }
 }
-function packageName(ref) {
+function packageName2(ref) {
   const at = ref.lastIndexOf("@");
   return at > 0 ? ref.slice(0, at) : ref;
 }

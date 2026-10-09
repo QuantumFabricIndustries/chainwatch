@@ -113,11 +113,11 @@ describe('SARIF reporter', () => {
     expect(loc.region).toBeUndefined();
   });
 
-  it('handles findings with no file', () => {
+  it('points findings with no file at the package manifest (code scanning needs a location)', () => {
     const findings = [makeFinding('suspicious_publish', 'medium')];
     const sarif = generateSarifObject(findings);
     const result = sarif.runs[0]!.results[0]!;
-    expect(result.locations[0]!.physicalLocation.artifactLocation.uri).toBe('');
+    expect(result.locations[0]!.physicalLocation.artifactLocation.uri).toBe('node_modules/test-pkg/package.json');
     expect(result.locations[0]!.physicalLocation.region).toBeUndefined();
   });
 
