@@ -17,6 +17,8 @@ export interface ActionInputs {
   uploadSarif: boolean;
   installCommand: string;
   githubToken: string;
+  /** Package names whose findings are dropped (known-good tools, test fixtures). */
+  allowPackages: string[];
 }
 
 const VALID_SEVERITIES: Severity[] = ['low', 'medium', 'high', 'critical'];
@@ -43,7 +45,13 @@ export function parseInputs(): ActionInputs {
     driftThreshold,
     sarifOutput: core.getInput('sarif-output') || 'chainwatch-results.sarif',
     uploadSarif: core.getInput('upload-sarif') === 'true',
-    installCommand: core.getInput('install-command') || 'npm ci',
+    // action.yml supplies 'npm ci' when unset; an explicit '' means skip the install.
+    installCommand: core.getInput('install-command'),
     githubToken: core.getInput('github-token'),
+    allowPackages: core
+      .getInput('allow-packages')
+      .split(/[\s,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean),
   };
 }

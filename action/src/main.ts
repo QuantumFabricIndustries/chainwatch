@@ -57,6 +57,14 @@ async function run(): Promise<void> {
       core.info(`Scanning ${scanDir}...`);
       const result = await scan(scanDir, { minSeverity: inputs.severity });
       findings = result.findings;
+      if (inputs.allowPackages.length > 0) {
+        const allowed = new Set(inputs.allowPackages);
+        const before = findings.length;
+        findings = findings.filter((f) => !allowed.has(packageName(f.package)));
+        if (before !== findings.length) {
+          core.info(`allow-packages: suppressed ${before - findings.length} findings`);
+        }
+      }
       scanMs = result.scanMs;
       packageCount = result.packageCount;
       core.info(`Scan complete: ${findings.length} findings in ${scanMs}ms (${packageCount} packages)`);
@@ -103,6 +111,12 @@ async function run(): Promise<void> {
   } catch (err) {
     core.setFailed(`ChainWatch action failed: ${(err as Error).message}`);
   }
+}
+
+/** "@scope/name@1.2.3" → "@scope/name". */
+function packageName(ref: string): string {
+  const at = ref.lastIndexOf('@');
+  return at > 0 ? ref.slice(0, at) : ref;
 }
 
 // ─── Drift detection ────────────────────────────────────────────────────────

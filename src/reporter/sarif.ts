@@ -12,6 +12,7 @@
  *   CW005 — SuspiciousPublish
  *   CW006 — DependencyConfusion
  *   CW007 — BehavioralDrift
+ *   CW008 — HostageToken
  */
 
 import type { Finding, Severity } from '../scan/finding.js';
@@ -33,6 +34,7 @@ const RULE_ID_MAP: Record<string, string> = {
   suspicious_publish: 'CW005',
   dependency_confusion: 'CW006',
   behavioral_drift: 'CW007',
+  hostage_token: 'CW008',
 };
 
 /** Full rule metadata for the SARIF tool driver. */
@@ -44,6 +46,7 @@ const RULE_METADATA: Record<string, { name: string; description: string }> = {
   CW005: { name: 'SuspiciousPublish', description: 'Package version published recently by new maintainer' },
   CW006: { name: 'DependencyConfusion', description: 'Scoped package resolved from public registry' },
   CW007: { name: 'BehavioralDrift', description: 'Package behavior deviates from recorded baseline' },
+  CW008: { name: 'HostageToken', description: 'Token-stealing worm with wipe-on-revoke monitor (remove before revoking)' },
 };
 
 /** All known rule IDs (for the rules array even when no findings reference them). */
@@ -163,6 +166,12 @@ function buildRules(findings: Finding[]): SarifRule[] {
   });
 }
 
+/** "@scope/name@1.2.3" → "@scope/name". */
+function packageName(ref: string): string {
+  const at = ref.lastIndexOf('@');
+  return at > 0 ? ref.slice(0, at) : ref;
+}
+
 function toSarifResult(f: Finding): SarifResult {
   const ruleId = getRuleId(f.rule);
   const file = f.file ?? '';
@@ -171,7 +180,11 @@ function toSarifResult(f: Finding): SarifResult {
   // URIs are slash-separated.
   const colon = file.lastIndexOf(':');
   const hasLine = colon > 0 && /^\d+$/.test(file.slice(colon + 1));
-  const uri = (hasLine ? file.slice(0, colon) : file).replace(/\\/g, '/');
+  // Code scanning rejects a result with no artifact location, so package-level
+  // findings (typosquat, known-bad version) point at the package's manifest.
+  const uri = file
+    ? (hasLine ? file.slice(0, colon) : file).replace(/\\/g, '/')
+    : `node_modules/${packageName(f.package)}/package.json`;
   const startLine = hasLine ? parseInt(file.slice(colon + 1), 10) : undefined;
 
   return {

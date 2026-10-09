@@ -30,9 +30,10 @@ describe('SARIF reporter', () => {
     expect(getRuleId('suspicious_publish')).toBe('CW005');
     expect(getRuleId('dependency_confusion')).toBe('CW006');
     expect(getRuleId('behavioral_drift')).toBe('CW007');
+    expect(getRuleId('hostage_token')).toBe('CW008');
   });
 
-  it('includes all 7 rules in the tool driver', () => {
+  it('includes all 8 rules in the tool driver', () => {
     const findings = [makeFinding('postinstall_network', 'high')];
     const sarif = generateSarifObject(findings);
     const ruleIds = sarif.runs[0]!.tool.driver.rules.map((r) => r.id);
@@ -43,7 +44,8 @@ describe('SARIF reporter', () => {
     expect(ruleIds).toContain('CW005');
     expect(ruleIds).toContain('CW006');
     expect(ruleIds).toContain('CW007');
-    expect(sarif.runs[0]!.tool.driver.rules).toHaveLength(7);
+    expect(ruleIds).toContain('CW008');
+    expect(sarif.runs[0]!.tool.driver.rules).toHaveLength(8);
   });
 
   it('maps severity to SARIF level correctly', () => {
@@ -111,11 +113,11 @@ describe('SARIF reporter', () => {
     expect(loc.region).toBeUndefined();
   });
 
-  it('handles findings with no file', () => {
+  it('points findings with no file at the package manifest (code scanning needs a location)', () => {
     const findings = [makeFinding('suspicious_publish', 'medium')];
     const sarif = generateSarifObject(findings);
     const result = sarif.runs[0]!.results[0]!;
-    expect(result.locations[0]!.physicalLocation.artifactLocation.uri).toBe('');
+    expect(result.locations[0]!.physicalLocation.artifactLocation.uri).toBe('node_modules/test-pkg/package.json');
     expect(result.locations[0]!.physicalLocation.region).toBeUndefined();
   });
 
@@ -135,6 +137,6 @@ describe('SARIF reporter', () => {
   it('handles empty findings (no results, all rules present)', () => {
     const sarif = generateSarifObject([]);
     expect(sarif.runs[0]!.results).toEqual([]);
-    expect(sarif.runs[0]!.tool.driver.rules).toHaveLength(7);
+    expect(sarif.runs[0]!.tool.driver.rules).toHaveLength(8);
   });
 });

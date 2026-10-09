@@ -9,6 +9,7 @@ import { credentialFileAccess } from './credential-file-access.js';
 import { obfuscationScore } from './obfuscation-score.js';
 import { suspiciousPublish } from './suspicious-publish.js';
 import { dependencyConfusion } from './dependency-confusion.js';
+import { hostageToken } from './hostage-token.js';
 import type { Rule } from '../types.js';
 
 export const ALL_RULES: Rule[] = [
@@ -18,6 +19,7 @@ export const ALL_RULES: Rule[] = [
   obfuscationScore,
   suspiciousPublish,
   dependencyConfusion,
+  hostageToken,
 ];
 
 export {
@@ -27,4 +29,5 @@ export {
   obfuscationScore,
   suspiciousPublish,
   dependencyConfusion,
+  hostageToken,
 };

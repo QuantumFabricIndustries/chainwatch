@@ -31,6 +31,9 @@ inputs:
   install-command:
     description: Command to run before scanning (e.g. npm ci)
     default: npm ci
+  allow-packages:
+    description: Comma-separated package names whose findings are ignored (known-good tools, test fixtures)
+    default: ''
   github-token:
     description: Token used for SARIF upload (defaults to the workflow token)
     default: ${{ github.token }}
@@ -47,7 +50,7 @@ outputs:
 
 runs:
   using: node20
-  main: dist/index.js
+  main: dist/index.cjs
 
 branding:
   icon: shield

@@ -1,0 +1,10 @@
+{
+  "name": "fake-clean-pkg",
+  "version": "1.0.0",
+  "description": "Fixture: clean package. Should produce 0 findings.",
+  "scripts": {
+    "build": "tsc"
+  },
+  "main": "index.js",
+  "private": true
+}
