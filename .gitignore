@@ -10,3 +10,6 @@ chainwatch-events.jsonl
 test-results.sarif
 .env
 .env.local
+
+# Scanner fixtures are fake packages and must be committed.
+!test/fixtures/node_modules/

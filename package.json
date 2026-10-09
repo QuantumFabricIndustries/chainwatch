@@ -45,7 +45,7 @@
   ],
   "scripts": {
     "build": "tsup",
-    "build:action": "esbuild action/src/main.ts --bundle --platform=node --target=node20 --outfile=action/dist/index.js --format=cjs && esbuild src/recorder-preload.ts --bundle --platform=node --target=node20 --outfile=action/dist/recorder-preload.mjs --format=esm",
+    "build:action": "esbuild action/src/main.ts --bundle --platform=node --target=node20 --outfile=action/dist/index.cjs --format=cjs && esbuild src/recorder-preload.ts --bundle --platform=node --target=node20 --outfile=action/dist/recorder-preload.mjs --format=esm",
     "build:all": "tsup && npm run build:action",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -13051,7 +13051,7 @@ var require_fetch = __commonJS({
         this.emit("terminated", error);
       }
     };
-    function fetch2(input, init = {}) {
+    function fetch(input, init = {}) {
       webidl.argumentLengthCheck(arguments, 1, { header: "globalThis.fetch" });
       const p = createDeferredPromise();
       let requestObject;
@@ -13981,7 +13981,7 @@ var require_fetch = __commonJS({
       }
     }
     module2.exports = {
-      fetch: fetch2,
+      fetch,
       Fetch,
       fetching,
       finalizeAndReportTiming
@@ -17237,7 +17237,7 @@ var require_undici = __commonJS({
     module2.exports.getGlobalDispatcher = getGlobalDispatcher;
     if (util.nodeMajor > 16 || util.nodeMajor === 16 && util.nodeMinor >= 8) {
       let fetchImpl = null;
-      module2.exports.fetch = async function fetch2(resource) {
+      module2.exports.fetch = async function fetch(resource) {
         if (!fetchImpl) {
           fetchImpl = require_fetch().fetch;
         }
@@ -20713,16 +20713,16 @@ var require_dist_node5 = __commonJS({
       let headers = {};
       let status;
       let url;
-      let { fetch: fetch2 } = globalThis;
+      let { fetch } = globalThis;
       if ((_b = requestOptions.request) == null ? void 0 : _b.fetch) {
-        fetch2 = requestOptions.request.fetch;
+        fetch = requestOptions.request.fetch;
       }
-      if (!fetch2) {
+      if (!fetch) {
         throw new Error(
           "fetch is not set. Please pass a fetch implementation as new Octokit({ request: { fetch }}). Learn more at https://github.com/octokit/octokit.js/#fetch-missing"
         );
       }
-      return fetch2(requestOptions.url, {
+      return fetch(requestOptions.url, {
         method: requestOptions.method,
         body: requestOptions.body,
         redirect: (_c = requestOptions.request) == null ? void 0 : _c.redirect,
@@ -24147,7 +24147,39 @@ var CRED_PATTERNS = [
   { re: /\.git-credentials/, label: "~/.git-credentials" },
   { re: /\.netrc/, label: "~/.netrc" },
   { re: /%APPDATA%[\\/]npm/, label: "%APPDATA%\\npm" },
-  { re: /%USERPROFILE%[\\/]\.ssh/, label: "%USERPROFILE%\\.ssh" }
+  { re: /%USERPROFILE%[\\/]\.ssh/, label: "%USERPROFILE%\\.ssh" },
+  // ── Stealer-shopping-list targets (MALFEX-class RAT/stealer campaigns) ──
+  // These are file paths no legitimate library reads — a package touching
+  // them is harvesting, not configuring.
+  // Discord token store
+  {
+    re: /discord[^\n'"]{0,80}(Local[ _]Storage|leveldb)/i,
+    label: "Discord token store (Local Storage/leveldb)"
+  },
+  {
+    re: /(discordcanary|discordptb)[^\n'"]{0,80}leveldb/i,
+    label: "Discord canary/PTB token store"
+  },
+  // Chromium credential databases (exact filenames — distinctive)
+  {
+    re: /(Login Data|Web Data|Local State|Network[\\/]Cookies)/,
+    label: "browser credential database"
+  },
+  // Firefox creds
+  { re: /(logins\.json|key4\.db|cert9\.db)/, label: "Firefox credential store" },
+  // Crypto wallets — files + extension IDs
+  {
+    re: /(wallet\.dat|electrum[\\/]|exodus[\\/]|atomic[\\/]wallet|nkbihfbeogaeaoehlefnkodbefgpgnn)/i,
+    label: "crypto wallet data"
+  },
+  // FTP / remote-access credential stores
+  { re: /filezilla[\\/]+sitemanager/i, label: "FileZilla saved credentials" },
+  { re: /winscp\.ini/i, label: "WinSCP saved sessions" },
+  // Telegram session
+  {
+    re: /Telegram[ _]Desktop[\\/]+tdata|\btdata[\\/]+(D877|key_datas)/i,
+    label: "Telegram session data (tdata)"
+  }
 ];
 var ALLOWLIST = /* @__PURE__ */ new Set(["npm", "yarn", "pnpm", "config", "rc", "dotenv"]);
 var credentialFileAccess = {
@@ -24549,30 +24581,47 @@ function makeDefaultFetcher() {
   const cache = /* @__PURE__ */ new Map();
   return async (name) => {
     if (cache.has(name)) return cache.get(name) ?? null;
-    try {
-      const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}`, {
-        signal: AbortSignal.timeout(1e4)
-      });
-      if (!res.ok) {
-        cache.set(name, null);
-        return null;
-      }
-      const data = await res.json();
-      const meta = {
-        name: data.name ?? name,
-        times: data.time ?? {},
-        maintainers: (data.maintainers ?? []).map(
-          (m) => typeof m === "string" ? m : m.name
-        ),
-        "dist-tags": data["dist-tags"] ?? {}
-      };
-      cache.set(name, meta);
-      return meta;
-    } catch {
-      cache.set(name, null);
-      return null;
-    }
+    const meta = await fetchRegistryMeta(name);
+    cache.set(name, meta);
+    return meta;
   };
+}
+async function fetchRegistryMeta(name) {
+  const { request } = await import("node:https");
+  return new Promise((resolve2) => {
+    const req = request(
+      `https://registry.npmjs.org/${encodeURIComponent(name)}`,
+      { headers: { Accept: "application/json" }, agent: false },
+      (res) => {
+        if (res.statusCode !== 200) {
+          res.resume();
+          resolve2(null);
+          return;
+        }
+        const chunks = [];
+        res.on("data", (c) => chunks.push(c));
+        res.on("end", () => {
+          try {
+            const data = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+            resolve2({
+              name: data.name ?? name,
+              times: data.time ?? {},
+              maintainers: (data.maintainers ?? []).map(
+                (m) => typeof m === "string" ? m : m.name
+              ),
+              "dist-tags": data["dist-tags"] ?? {}
+            });
+          } catch {
+            resolve2(null);
+          }
+        });
+        res.on("error", () => resolve2(null));
+      }
+    );
+    req.setTimeout(1e4, () => req.destroy());
+    req.on("error", () => resolve2(null));
+    req.end();
+  });
 }
 
 // src/version.ts
@@ -24856,8 +24905,10 @@ function parseInputs() {
     driftThreshold,
     sarifOutput: core.getInput("sarif-output") || "chainwatch-results.sarif",
     uploadSarif: core.getInput("upload-sarif") === "true",
-    installCommand: core.getInput("install-command") || "npm ci",
-    githubToken: core.getInput("github-token")
+    // action.yml supplies 'npm ci' when unset; an explicit '' means skip the install.
+    installCommand: core.getInput("install-command"),
+    githubToken: core.getInput("github-token"),
+    allowPackages: core.getInput("allow-packages").split(/[\s,]+/).map((s) => s.trim()).filter(Boolean)
   };
 }
 
@@ -24932,6 +24983,14 @@ async function run() {
       core3.info(`Scanning ${scanDir}...`);
       const result = await scan(scanDir, { minSeverity: inputs.severity });
       findings = result.findings;
+      if (inputs.allowPackages.length > 0) {
+        const allowed = new Set(inputs.allowPackages);
+        const before = findings.length;
+        findings = findings.filter((f) => !allowed.has(packageName(f.package)));
+        if (before !== findings.length) {
+          core3.info(`allow-packages: suppressed ${before - findings.length} findings`);
+        }
+      }
       scanMs = result.scanMs;
       packageCount = result.packageCount;
       core3.info(`Scan complete: ${findings.length} findings in ${scanMs}ms (${packageCount} packages)`);
@@ -24968,6 +25027,10 @@ async function run() {
   } catch (err) {
     core3.setFailed(`ChainWatch action failed: ${err.message}`);
   }
+}
+function packageName(ref) {
+  const at = ref.lastIndexOf("@");
+  return at > 0 ? ref.slice(0, at) : ref;
 }
 function loadBaseline(inputs) {
   if (!inputs.baselineFile) return null;
