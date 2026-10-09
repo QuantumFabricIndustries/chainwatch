@@ -486,7 +486,7 @@ src/
 action/
   action.yml         — GitHub Action definition (shield/red branding)
   src/               — Action entry point (scan + SARIF + summary)
-  dist/index.js      — esbuild bundle (committed, GitHub runs this directly)
+  dist/index.cjs     — esbuild bundle (committed, GitHub runs this directly)
 server/              — Phase 5: ChainWatch Cloud API
   src/
     api/             — events, baselines, dashboard, alerts, auth
