@@ -28,6 +28,7 @@ const CRED_PATTERNS: { re: RegExp; label: string }[] = [
   { re: /\.kube[\\/]config/, label: '~/.kube/config' },
   { re: /\.docker[\\/]config\.json/, label: '~/.docker/config.json' },
   { re: /\.git-credentials/, label: '~/.git-credentials' },
+  { re: /\.config[\\/]gh[\\/]hosts\.yml/, label: '~/.config/gh/hosts.yml (GitHub CLI token)' },
   { re: /\.netrc/, label: '~/.netrc' },
   { re: /%APPDATA%[\\/]npm/, label: '%APPDATA%\\npm' },
   { re: /%USERPROFILE%[\\/]\.ssh/, label: '%USERPROFILE%\\.ssh' },

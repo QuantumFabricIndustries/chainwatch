@@ -15,6 +15,7 @@ Most supply-chain attacks are caught too late: after `npm install`, after the CI
 - **Process spawning** — unexpected child processes launched by dependencies
 - **Behavioral drift** — packages behaving differently between environments
 - **Integrity violations** — installed files that don't match published checksums
+- **Hostage-token worms** — tensorlake-style installs that steal a GitHub token and wipe your home directory if you revoke it first (see below)
 
 ---
 
@@ -270,7 +271,8 @@ No manual baseline management required.
 | `drift-threshold` | `40` | Drift score to trigger a finding (0–100) |
 | `sarif-output` | `chainwatch-results.sarif` | Write SARIF output to this file |
 | `upload-sarif` | `true` | Upload SARIF to GitHub Security tab |
-| `install-command` | `npm ci` | Command to run before scanning |
+| `install-command` | `npm ci` | Command to run before scanning (`''` skips it) |
+| `allow-packages` | `''` | Comma-separated package names whose findings are ignored (known-good tools, test fixtures) |
 
 ### Action outputs
 
@@ -292,6 +294,33 @@ No manual baseline management required.
 | CW005 | SuspiciousPublish | warning |
 | CW006 | DependencyConfusion | error |
 | CW007 | BehavioralDrift | warning |
+| CW008 | HostageToken | error |
+
+## Hostage-token worms (tensorlake)
+
+`tensorlake@0.5.144` (Oct 2026) shipped a Shai-Hulud variant that steals GitHub
+and npm tokens, then installs `gh-token-monitor`: a background job that checks
+the stolen token every 60 seconds for 24 hours and deletes your home directory
+(or Windows profile) as soon as GitHub rejects it. **Revoking the token first is
+what triggers the wipe.**
+
+`chainwatch scan` flags it as `hostage_token` (CW008, critical): the known bad
+release, the published indicators, any file that both checks a GitHub token and
+wipes `~`, and install scripts that fetch the Bun runtime. When it fires, the
+report opens with a stop banner.
+
+```bash
+chainwatch hostage-check            # exit 0 clean, 2 = monitor installed, 1 = worm repo files only
+```
+
+`hostage-check` looks for the monitor (systemd user unit, macOS LaunchAgent,
+Windows logon task running `monitor.ps1`) and for the `.claude/settings.json` /
+`.vscode/tasks.json` files the worm commits to re-run itself, then prints the
+cleanup steps in the safe order: kill the monitor, remove the package, re-check,
+and only then revoke and rotate.
+
+Watch mode also now treats `~/.config/gh/hosts.yml` (the GitHub CLI token) as a
+credential file.
 
 ## Cloud Sync + Team Dashboard
 

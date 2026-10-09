@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — tensorlake hostage-token worm
+
+- `hostage_token` scan rule (SARIF CW008, critical): known-compromised
+  `tensorlake@0.5.144`, `gh-token-monitor` / C2 / exfil-repo indicators, any
+  file pairing a GitHub token check with a home-directory wipe, and install
+  scripts that fetch the Bun runtime (high). Findings say to remove the
+  monitor before revoking; the pretty report opens with a stop banner.
+- `chainwatch hostage-check`: finds the wipe-on-revoke monitor on Linux,
+  macOS and Windows plus worm-committed `.claude/` and `.vscode/` files, and
+  prints the safe cleanup order.
+- `~/.config/gh/hosts.yml` is now a credential path in both watch mode and
+  `credential_file_access`.
+
+### Fixed — CI
+
+- Scanner fixtures under `test/fixtures/node_modules` are committed (they were
+  swallowed by the `node_modules/` ignore rule).
+- Action bundle is `action/dist/index.cjs` so Node loads it under
+  `"type": "module"`; root `action.yml` YAML repaired; new `allow-packages`
+  input; `install-command: ''` skips the install.
+
 ### Added — detection coverage
 
 - `credential_file_access` now flags stealer-shopping-list paths, not just

@@ -45,6 +45,13 @@ export function formatPretty(
     return lines.join('\n');
   }
 
+  if (findings.some((f) => f.rule === 'hostage_token')) {
+    lines.push(`  ${c('critical')}!! STOP: do not revoke GitHub tokens yet.${r()}`);
+    lines.push('     A token-stealing worm here may wipe your home directory when its token is revoked.');
+    lines.push('     Run `chainwatch hostage-check` and remove the monitor first.');
+    lines.push('');
+  }
+
   for (const f of findings) {
     lines.push(`  ${c(f.severity)}${f.severity.toUpperCase().padEnd(8)}${r()} ${f.rule.padEnd(20)} ${f.package}`);
     lines.push(`          ${f.description}`);

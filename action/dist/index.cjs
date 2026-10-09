@@ -996,14 +996,14 @@ var require_util = __commonJS({
         }
         const port = url.port != null ? url.port : url.protocol === "https:" ? 443 : 80;
         let origin = url.origin != null ? url.origin : `${url.protocol}//${url.hostname}:${port}`;
-        let path9 = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
+        let path10 = url.path != null ? url.path : `${url.pathname || ""}${url.search || ""}`;
         if (origin.endsWith("/")) {
           origin = origin.substring(0, origin.length - 1);
         }
-        if (path9 && !path9.startsWith("/")) {
-          path9 = `/${path9}`;
+        if (path10 && !path10.startsWith("/")) {
+          path10 = `/${path10}`;
         }
-        url = new URL(origin + path9);
+        url = new URL(origin + path10);
       }
       return url;
     }
@@ -2617,20 +2617,20 @@ var require_parseParams = __commonJS({
 var require_basename = __commonJS({
   "node_modules/@fastify/busboy/lib/utils/basename.js"(exports2, module2) {
     "use strict";
-    module2.exports = function basename(path9) {
-      if (typeof path9 !== "string") {
+    module2.exports = function basename(path10) {
+      if (typeof path10 !== "string") {
         return "";
       }
-      for (var i = path9.length - 1; i >= 0; --i) {
-        switch (path9.charCodeAt(i)) {
+      for (var i = path10.length - 1; i >= 0; --i) {
+        switch (path10.charCodeAt(i)) {
           case 47:
           // '/'
           case 92:
-            path9 = path9.slice(i + 1);
-            return path9 === ".." || path9 === "." ? "" : path9;
+            path10 = path10.slice(i + 1);
+            return path10 === ".." || path10 === "." ? "" : path10;
         }
       }
-      return path9 === ".." || path9 === "." ? "" : path9;
+      return path10 === ".." || path10 === "." ? "" : path10;
     };
   }
 });
@@ -5660,7 +5660,7 @@ var require_request = __commonJS({
     }
     var Request = class _Request {
       constructor(origin, {
-        path: path9,
+        path: path10,
         method,
         body,
         headers,
@@ -5674,11 +5674,11 @@ var require_request = __commonJS({
         throwOnError,
         expectContinue
       }, handler) {
-        if (typeof path9 !== "string") {
+        if (typeof path10 !== "string") {
           throw new InvalidArgumentError("path must be a string");
-        } else if (path9[0] !== "/" && !(path9.startsWith("http://") || path9.startsWith("https://")) && method !== "CONNECT") {
+        } else if (path10[0] !== "/" && !(path10.startsWith("http://") || path10.startsWith("https://")) && method !== "CONNECT") {
           throw new InvalidArgumentError("path must be an absolute URL or start with a slash");
-        } else if (invalidPathRegex.exec(path9) !== null) {
+        } else if (invalidPathRegex.exec(path10) !== null) {
           throw new InvalidArgumentError("invalid request path");
         }
         if (typeof method !== "string") {
@@ -5741,7 +5741,7 @@ var require_request = __commonJS({
         this.completed = false;
         this.aborted = false;
         this.upgrade = upgrade || null;
-        this.path = query ? util.buildURL(path9, query) : path9;
+        this.path = query ? util.buildURL(path10, query) : path10;
         this.origin = origin;
         this.idempotent = idempotent == null ? method === "HEAD" || method === "GET" : idempotent;
         this.blocking = blocking == null ? false : blocking;
@@ -6749,9 +6749,9 @@ var require_RedirectHandler = __commonJS({
           return this.handler.onHeaders(statusCode, headers, resume, statusText);
         }
         const { origin, pathname, search } = util.parseURL(new URL(this.location, this.opts.origin && new URL(this.opts.path, this.opts.origin)));
-        const path9 = search ? `${pathname}${search}` : pathname;
+        const path10 = search ? `${pathname}${search}` : pathname;
         this.opts.headers = cleanRequestHeaders(this.opts.headers, statusCode === 303, this.opts.origin !== origin);
-        this.opts.path = path9;
+        this.opts.path = path10;
         this.opts.origin = origin;
         this.opts.maxRedirections = 0;
         this.opts.query = null;
@@ -7991,7 +7991,7 @@ var require_client = __commonJS({
         writeH2(client, client[kHTTP2Session], request);
         return;
       }
-      const { body, method, path: path9, host, upgrade, headers, blocking, reset } = request;
+      const { body, method, path: path10, host, upgrade, headers, blocking, reset } = request;
       const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH";
       if (body && typeof body.read === "function") {
         body.read(0);
@@ -8041,7 +8041,7 @@ var require_client = __commonJS({
       if (blocking) {
         socket[kBlocking] = true;
       }
-      let header = `${method} ${path9} HTTP/1.1\r
+      let header = `${method} ${path10} HTTP/1.1\r
 `;
       if (typeof host === "string") {
         header += `host: ${host}\r
@@ -8104,7 +8104,7 @@ upgrade: ${upgrade}\r
       return true;
     }
     function writeH2(client, session, request) {
-      const { body, method, path: path9, host, upgrade, expectContinue, signal, headers: reqHeaders } = request;
+      const { body, method, path: path10, host, upgrade, expectContinue, signal, headers: reqHeaders } = request;
       let headers;
       if (typeof reqHeaders === "string") headers = Request[kHTTP2CopyHeaders](reqHeaders.trim());
       else headers = reqHeaders;
@@ -8147,7 +8147,7 @@ upgrade: ${upgrade}\r
         });
         return true;
       }
-      headers[HTTP2_HEADER_PATH] = path9;
+      headers[HTTP2_HEADER_PATH] = path10;
       headers[HTTP2_HEADER_SCHEME] = "https";
       const expectsPayload = method === "PUT" || method === "POST" || method === "PATCH";
       if (body && typeof body.read === "function") {
@@ -10387,20 +10387,20 @@ var require_mock_utils = __commonJS({
       }
       return true;
     }
-    function safeUrl(path9) {
-      if (typeof path9 !== "string") {
-        return path9;
+    function safeUrl(path10) {
+      if (typeof path10 !== "string") {
+        return path10;
       }
-      const pathSegments = path9.split("?");
+      const pathSegments = path10.split("?");
       if (pathSegments.length !== 2) {
-        return path9;
+        return path10;
       }
       const qp = new URLSearchParams(pathSegments.pop());
       qp.sort();
       return [...pathSegments, qp.toString()].join("?");
     }
-    function matchKey(mockDispatch2, { path: path9, method, body, headers }) {
-      const pathMatch = matchValue(mockDispatch2.path, path9);
+    function matchKey(mockDispatch2, { path: path10, method, body, headers }) {
+      const pathMatch = matchValue(mockDispatch2.path, path10);
       const methodMatch = matchValue(mockDispatch2.method, method);
       const bodyMatch = typeof mockDispatch2.body !== "undefined" ? matchValue(mockDispatch2.body, body) : true;
       const headersMatch = matchHeaders(mockDispatch2, headers);
@@ -10418,7 +10418,7 @@ var require_mock_utils = __commonJS({
     function getMockDispatch(mockDispatches, key) {
       const basePath = key.query ? buildURL(key.path, key.query) : key.path;
       const resolvedPath = typeof basePath === "string" ? safeUrl(basePath) : basePath;
-      let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path: path9 }) => matchValue(safeUrl(path9), resolvedPath));
+      let matchedMockDispatches = mockDispatches.filter(({ consumed }) => !consumed).filter(({ path: path10 }) => matchValue(safeUrl(path10), resolvedPath));
       if (matchedMockDispatches.length === 0) {
         throw new MockNotMatchedError(`Mock dispatch not matched for path '${resolvedPath}'`);
       }
@@ -10455,9 +10455,9 @@ var require_mock_utils = __commonJS({
       }
     }
     function buildKey(opts) {
-      const { path: path9, method, body, headers, query } = opts;
+      const { path: path10, method, body, headers, query } = opts;
       return {
-        path: path9,
+        path: path10,
         method,
         body,
         headers,
@@ -10906,10 +10906,10 @@ var require_pending_interceptors_formatter = __commonJS({
       }
       format(pendingInterceptors) {
         const withPrettyHeaders = pendingInterceptors.map(
-          ({ method, path: path9, data: { statusCode }, persist, times, timesInvoked, origin }) => ({
+          ({ method, path: path10, data: { statusCode }, persist, times, timesInvoked, origin }) => ({
             Method: method,
             Origin: origin,
-            Path: path9,
+            Path: path10,
             "Status code": statusCode,
             Persistent: persist ? "\u2705" : "\u274C",
             Invocations: timesInvoked,
@@ -15529,8 +15529,8 @@ var require_util6 = __commonJS({
         }
       }
     }
-    function validateCookiePath(path9) {
-      for (const char of path9) {
+    function validateCookiePath(path10) {
+      for (const char of path10) {
         const code = char.charCodeAt(0);
         if (code < 33 || char === ";") {
           throw new Error("Invalid cookie path");
@@ -17210,11 +17210,11 @@ var require_undici = __commonJS({
           if (typeof opts.path !== "string") {
             throw new InvalidArgumentError("invalid opts.path");
           }
-          let path9 = opts.path;
+          let path10 = opts.path;
           if (!opts.path.startsWith("/")) {
-            path9 = `/${path9}`;
+            path10 = `/${path10}`;
           }
-          url = new URL(util.parseOrigin(url).origin + path9);
+          url = new URL(util.parseOrigin(url).origin + path10);
         } else {
           if (!opts) {
             opts = typeof url === "object" ? url : {};
@@ -18437,7 +18437,7 @@ var require_path_utils = __commonJS({
     };
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.toPlatformPath = exports2.toWin32Path = exports2.toPosixPath = void 0;
-    var path9 = __importStar(require("path"));
+    var path10 = __importStar(require("path"));
     function toPosixPath(pth) {
       return pth.replace(/[\\]/g, "/");
     }
@@ -18447,7 +18447,7 @@ var require_path_utils = __commonJS({
     }
     exports2.toWin32Path = toWin32Path;
     function toPlatformPath(pth) {
-      return pth.replace(/[/\\]/g, path9.sep);
+      return pth.replace(/[/\\]/g, path10.sep);
     }
     exports2.toPlatformPath = toPlatformPath;
   }
@@ -18511,7 +18511,7 @@ var require_io_util = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.getCmdPath = exports2.tryGetExecutablePath = exports2.isRooted = exports2.isDirectory = exports2.exists = exports2.READONLY = exports2.UV_FS_O_EXLOCK = exports2.IS_WINDOWS = exports2.unlink = exports2.symlink = exports2.stat = exports2.rmdir = exports2.rm = exports2.rename = exports2.readlink = exports2.readdir = exports2.open = exports2.mkdir = exports2.lstat = exports2.copyFile = exports2.chmod = void 0;
     var fs6 = __importStar(require("fs"));
-    var path9 = __importStar(require("path"));
+    var path10 = __importStar(require("path"));
     _a = fs6.promises, exports2.chmod = _a.chmod, exports2.copyFile = _a.copyFile, exports2.lstat = _a.lstat, exports2.mkdir = _a.mkdir, exports2.open = _a.open, exports2.readdir = _a.readdir, exports2.readlink = _a.readlink, exports2.rename = _a.rename, exports2.rm = _a.rm, exports2.rmdir = _a.rmdir, exports2.stat = _a.stat, exports2.symlink = _a.symlink, exports2.unlink = _a.unlink;
     exports2.IS_WINDOWS = process.platform === "win32";
     exports2.UV_FS_O_EXLOCK = 268435456;
@@ -18560,7 +18560,7 @@ var require_io_util = __commonJS({
         }
         if (stats && stats.isFile()) {
           if (exports2.IS_WINDOWS) {
-            const upperExt = path9.extname(filePath).toUpperCase();
+            const upperExt = path10.extname(filePath).toUpperCase();
             if (extensions.some((validExt) => validExt.toUpperCase() === upperExt)) {
               return filePath;
             }
@@ -18584,11 +18584,11 @@ var require_io_util = __commonJS({
           if (stats && stats.isFile()) {
             if (exports2.IS_WINDOWS) {
               try {
-                const directory = path9.dirname(filePath);
-                const upperName = path9.basename(filePath).toUpperCase();
+                const directory = path10.dirname(filePath);
+                const upperName = path10.basename(filePath).toUpperCase();
                 for (const actualName of yield exports2.readdir(directory)) {
                   if (upperName === actualName.toUpperCase()) {
-                    filePath = path9.join(directory, actualName);
+                    filePath = path10.join(directory, actualName);
                     break;
                   }
                 }
@@ -18683,7 +18683,7 @@ var require_io = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.findInPath = exports2.which = exports2.mkdirP = exports2.rmRF = exports2.mv = exports2.cp = void 0;
     var assert_1 = require("assert");
-    var path9 = __importStar(require("path"));
+    var path10 = __importStar(require("path"));
     var ioUtil = __importStar(require_io_util());
     function cp(source, dest, options = {}) {
       return __awaiter(this, void 0, void 0, function* () {
@@ -18692,7 +18692,7 @@ var require_io = __commonJS({
         if (destStat && destStat.isFile() && !force) {
           return;
         }
-        const newDest = destStat && destStat.isDirectory() && copySourceDirectory ? path9.join(dest, path9.basename(source)) : dest;
+        const newDest = destStat && destStat.isDirectory() && copySourceDirectory ? path10.join(dest, path10.basename(source)) : dest;
         if (!(yield ioUtil.exists(source))) {
           throw new Error(`no such file or directory: ${source}`);
         }
@@ -18704,7 +18704,7 @@ var require_io = __commonJS({
             yield cpDirRecursive(source, newDest, 0, force);
           }
         } else {
-          if (path9.relative(source, newDest) === "") {
+          if (path10.relative(source, newDest) === "") {
             throw new Error(`'${newDest}' and '${source}' are the same file`);
           }
           yield copyFile(source, newDest, force);
@@ -18717,7 +18717,7 @@ var require_io = __commonJS({
         if (yield ioUtil.exists(dest)) {
           let destExists = true;
           if (yield ioUtil.isDirectory(dest)) {
-            dest = path9.join(dest, path9.basename(source));
+            dest = path10.join(dest, path10.basename(source));
             destExists = yield ioUtil.exists(dest);
           }
           if (destExists) {
@@ -18728,7 +18728,7 @@ var require_io = __commonJS({
             }
           }
         }
-        yield mkdirP(path9.dirname(dest));
+        yield mkdirP(path10.dirname(dest));
         yield ioUtil.rename(source, dest);
       });
     }
@@ -18791,7 +18791,7 @@ var require_io = __commonJS({
         }
         const extensions = [];
         if (ioUtil.IS_WINDOWS && process.env["PATHEXT"]) {
-          for (const extension of process.env["PATHEXT"].split(path9.delimiter)) {
+          for (const extension of process.env["PATHEXT"].split(path10.delimiter)) {
             if (extension) {
               extensions.push(extension);
             }
@@ -18804,12 +18804,12 @@ var require_io = __commonJS({
           }
           return [];
         }
-        if (tool.includes(path9.sep)) {
+        if (tool.includes(path10.sep)) {
           return [];
         }
         const directories = [];
         if (process.env.PATH) {
-          for (const p of process.env.PATH.split(path9.delimiter)) {
+          for (const p of process.env.PATH.split(path10.delimiter)) {
             if (p) {
               directories.push(p);
             }
@@ -18817,7 +18817,7 @@ var require_io = __commonJS({
         }
         const matches = [];
         for (const directory of directories) {
-          const filePath = yield ioUtil.tryGetExecutablePath(path9.join(directory, tool), extensions);
+          const filePath = yield ioUtil.tryGetExecutablePath(path10.join(directory, tool), extensions);
           if (filePath) {
             matches.push(filePath);
           }
@@ -18933,7 +18933,7 @@ var require_toolrunner = __commonJS({
     var os3 = __importStar(require("os"));
     var events = __importStar(require("events"));
     var child = __importStar(require("child_process"));
-    var path9 = __importStar(require("path"));
+    var path10 = __importStar(require("path"));
     var io = __importStar(require_io());
     var ioUtil = __importStar(require_io_util());
     var timers_1 = require("timers");
@@ -19148,7 +19148,7 @@ var require_toolrunner = __commonJS({
       exec() {
         return __awaiter(this, void 0, void 0, function* () {
           if (!ioUtil.isRooted(this.toolPath) && (this.toolPath.includes("/") || IS_WINDOWS && this.toolPath.includes("\\"))) {
-            this.toolPath = path9.resolve(process.cwd(), this.options.cwd || process.cwd(), this.toolPath);
+            this.toolPath = path10.resolve(process.cwd(), this.options.cwd || process.cwd(), this.toolPath);
           }
           this.toolPath = yield io.which(this.toolPath, true);
           return new Promise((resolve2, reject) => __awaiter(this, void 0, void 0, function* () {
@@ -19648,7 +19648,7 @@ var require_core = __commonJS({
     var file_command_1 = require_file_command();
     var utils_1 = require_utils();
     var os3 = __importStar(require("os"));
-    var path9 = __importStar(require("path"));
+    var path10 = __importStar(require("path"));
     var oidc_utils_1 = require_oidc_utils();
     var ExitCode;
     (function(ExitCode2) {
@@ -19676,7 +19676,7 @@ var require_core = __commonJS({
       } else {
         (0, command_1.issueCommand)("add-path", {}, inputPath);
       }
-      process.env["PATH"] = `${inputPath}${path9.delimiter}${process.env["PATH"]}`;
+      process.env["PATH"] = `${inputPath}${path10.delimiter}${process.env["PATH"]}`;
     }
     exports2.addPath = addPath;
     function getInput2(name, options) {
@@ -19832,8 +19832,8 @@ var require_context = __commonJS({
           if ((0, fs_1.existsSync)(process.env.GITHUB_EVENT_PATH)) {
             this.payload = JSON.parse((0, fs_1.readFileSync)(process.env.GITHUB_EVENT_PATH, { encoding: "utf8" }));
           } else {
-            const path9 = process.env.GITHUB_EVENT_PATH;
-            process.stdout.write(`GITHUB_EVENT_PATH ${path9} does not exist${os_1.EOL}`);
+            const path10 = process.env.GITHUB_EVENT_PATH;
+            process.stdout.write(`GITHUB_EVENT_PATH ${path10} does not exist${os_1.EOL}`);
           }
         }
         this.eventName = process.env.GITHUB_EVENT_NAME;
@@ -23890,7 +23890,7 @@ __export(main_exports, {
 module.exports = __toCommonJS(main_exports);
 var core3 = __toESM(require_core(), 1);
 var fs5 = __toESM(require("node:fs"), 1);
-var path8 = __toESM(require("node:path"), 1);
+var path9 = __toESM(require("node:path"), 1);
 var os2 = __toESM(require("node:os"), 1);
 var zlib = __toESM(require("node:zlib"), 1);
 var import_node_url = require("node:url");
@@ -23898,7 +23898,7 @@ var import_node_child_process = require("node:child_process");
 
 // src/scan/scanner.ts
 var fs3 = __toESM(require("node:fs"), 1);
-var path7 = __toESM(require("node:path"), 1);
+var path8 = __toESM(require("node:path"), 1);
 
 // src/scan/finding.ts
 var SEVERITY_RANK = {
@@ -24145,6 +24145,7 @@ var CRED_PATTERNS = [
   { re: /\.kube[\\/]config/, label: "~/.kube/config" },
   { re: /\.docker[\\/]config\.json/, label: "~/.docker/config.json" },
   { re: /\.git-credentials/, label: "~/.git-credentials" },
+  { re: /\.config[\\/]gh[\\/]hosts\.yml/, label: "~/.config/gh/hosts.yml (GitHub CLI token)" },
   { re: /\.netrc/, label: "~/.netrc" },
   { re: /%APPDATA%[\\/]npm/, label: "%APPDATA%\\npm" },
   { re: /%USERPROFILE%[\\/]\.ssh/, label: "%USERPROFILE%\\.ssh" },
@@ -24471,6 +24472,92 @@ var dependencyConfusion = {
   }
 };
 
+// src/scan/rules/hostage-token.ts
+var path7 = __toESM(require("node:path"), 1);
+var REVOKE_WARNING = "Do NOT revoke tokens yet: remove the package and its gh-token-monitor first (run `chainwatch hostage-check`), then rotate.";
+var KNOWN_COMPROMISED = {
+  tensorlake: ["0.5.144"]
+};
+var IOC_PATTERNS = [
+  { re: /gh-token-monitor/, label: "gh-token-monitor dead-man switch" },
+  { re: /iseekaigogo\.com/i, label: "tensorlake worm C2 domain" },
+  { re: /Shai-Hulud: Here We Go Again/i, label: "Shai-Hulud exfil repo description" }
+];
+var TOKEN_CHECK_RE = /api\.github\.com\/user\b|gh\s+auth\s+status|Authorization['"]?\s*[:=]\s*[`'"](?:token|Bearer)\s/i;
+var HOME_WIPE_RE = new RegExp(
+  [
+    String.raw`rm\s+-(?:rf|fr)\s+(?:~\/?|"?\$(?:HOME|\{HOME\})\/?"?)(?=[\s;&|'"\x60)]|$)`,
+    String.raw`Remove-Item[^\n]{0,80}\$env:USERPROFILE[^\n]{0,40}-Recurse`,
+    String.raw`Remove-Item[^\n]{0,40}-Recurse[^\n]{0,80}\$env:USERPROFILE`,
+    String.raw`(?:rmSync|rmdirSync|rimraf(?:\.sync)?)\s*\(\s*(?:os\.)?homedir\(\)`
+  ].join("|"),
+  "m"
+);
+var BUN_BOOTSTRAP_RE = /bun\.sh\/install|github\.com\/oven-sh\/bun\/releases/;
+var INSTALL_SCRIPTS3 = ["preinstall", "install", "postinstall", "prepare"];
+var hostageToken = {
+  id: "hostage_token",
+  check(meta) {
+    const findings = [];
+    const pkgRef = `${meta.name}@${meta.version}`;
+    if (KNOWN_COMPROMISED[meta.name]?.includes(meta.version)) {
+      findings.push({
+        rule: "hostage_token",
+        severity: "critical",
+        package: pkgRef,
+        description: `Known-compromised release (token-stealing worm with wipe-on-revoke monitor). ${REVOKE_WARNING}`
+      });
+    }
+    const scripts = getScripts(meta.raw);
+    const hasInstallScript = INSTALL_SCRIPTS3.some((s) => scripts[s]);
+    const scriptText = INSTALL_SCRIPTS3.map((s) => scripts[s] ?? "").join("\n");
+    const sources = [{ rel: "package.json", content: scriptText }];
+    for (const file of collectSourceFiles(meta.path)) {
+      const content = readFileSafe(file);
+      if (content) sources.push({ rel: path7.relative(meta.path, file), content });
+    }
+    for (const { rel, content } of sources) {
+      const ioc = IOC_PATTERNS.find(({ re }) => re.test(content));
+      if (ioc) {
+        const m = content.match(ioc.re)[0];
+        findings.push({
+          rule: "hostage_token",
+          severity: "critical",
+          package: pkgRef,
+          description: `Source contains ${ioc.label} indicator. ${REVOKE_WARNING}`,
+          file: `${rel}:${lineOf(content, m)}`,
+          evidence: evidenceAround(content, m)
+        });
+        continue;
+      }
+      const wipe = content.match(HOME_WIPE_RE);
+      if (wipe && TOKEN_CHECK_RE.test(content)) {
+        findings.push({
+          rule: "hostage_token",
+          severity: "critical",
+          package: pkgRef,
+          description: `Checks a GitHub token and wipes the home directory \u2014 dead-man switch. ${REVOKE_WARNING}`,
+          file: `${rel}:${lineOf(content, wipe[0])}`,
+          evidence: evidenceAround(content, wipe[0])
+        });
+        continue;
+      }
+      const bun = hasInstallScript ? content.match(BUN_BOOTSTRAP_RE) : null;
+      if (bun) {
+        findings.push({
+          rule: "hostage_token",
+          severity: "high",
+          package: pkgRef,
+          description: "Package with install scripts downloads the Bun runtime \u2014 Shai-Hulud payload loader shape",
+          file: `${rel}:${lineOf(content, bun[0])}`,
+          evidence: evidenceAround(content, bun[0])
+        });
+      }
+    }
+    return findings;
+  }
+};
+
 // src/scan/rules/index.ts
 var ALL_RULES = [
   postinstallNetwork,
@@ -24478,7 +24565,8 @@ var ALL_RULES = [
   credentialFileAccess,
   obfuscationScore,
   suspiciousPublish,
-  dependencyConfusion
+  dependencyConfusion,
+  hostageToken
 ];
 
 // src/scan/scanner.ts
@@ -24499,7 +24587,7 @@ function discoverInto(dir, packages, visited, depth, scope) {
   for (const entry of entries) {
     if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
     if (entry.name.startsWith(".")) continue;
-    const pkgPath = path7.join(dir, entry.name);
+    const pkgPath = path8.join(dir, entry.name);
     if (entry.name.startsWith("@") && !scope) {
       discoverInto(pkgPath, packages, visited, depth, entry.name);
       continue;
@@ -24514,11 +24602,11 @@ function discoverInto(dir, packages, visited, depth, scope) {
     if (visited.has(real)) continue;
     visited.add(real);
     packages.push(meta);
-    discoverInto(path7.join(pkgPath, "node_modules"), packages, visited, depth + 1);
+    discoverInto(path8.join(pkgPath, "node_modules"), packages, visited, depth + 1);
   }
 }
 function readPackageMeta(pkgPath, fallbackName) {
-  const pkgJsonPath = path7.join(pkgPath, "package.json");
+  const pkgJsonPath = path8.join(pkgPath, "package.json");
   let raw;
   try {
     raw = JSON.parse(fs3.readFileSync(pkgJsonPath, "utf8"));
@@ -24538,14 +24626,14 @@ async function scan(nodeModulesDir, opts = {}) {
   const minSev = opts.minSeverity ?? "low";
   let context = opts.context ?? {};
   if (!context.packageLock) {
-    const lockPath = path7.join(path7.dirname(nodeModulesDir), "package-lock.json");
+    const lockPath = path8.join(path8.dirname(nodeModulesDir), "package-lock.json");
     try {
       const lock = JSON.parse(fs3.readFileSync(lockPath, "utf8"));
       context = { ...context, packageLock: lock };
     } catch {
     }
   }
-  context.projectDir ??= path7.dirname(nodeModulesDir);
+  context.projectDir ??= path8.dirname(nodeModulesDir);
   if (!context.fetchRegistryMeta) {
     context.fetchRegistryMeta = makeDefaultFetcher();
   }
@@ -24641,7 +24729,8 @@ var RULE_ID_MAP = {
   obfuscation_score: "CW004",
   suspicious_publish: "CW005",
   dependency_confusion: "CW006",
-  behavioral_drift: "CW007"
+  behavioral_drift: "CW007",
+  hostage_token: "CW008"
 };
 var RULE_METADATA = {
   CW001: { name: "PostinstallNetwork", description: "Postinstall script makes network request" },
@@ -24650,7 +24739,8 @@ var RULE_METADATA = {
   CW004: { name: "ObfuscationScore", description: "Package source contains suspicious obfuscation" },
   CW005: { name: "SuspiciousPublish", description: "Package version published recently by new maintainer" },
   CW006: { name: "DependencyConfusion", description: "Scoped package resolved from public registry" },
-  CW007: { name: "BehavioralDrift", description: "Package behavior deviates from recorded baseline" }
+  CW007: { name: "BehavioralDrift", description: "Package behavior deviates from recorded baseline" },
+  CW008: { name: "HostageToken", description: "Token-stealing worm with wipe-on-revoke monitor (remove before revoking)" }
 };
 var ALL_RULE_IDS = Object.keys(RULE_METADATA);
 function getRuleId(ruleName) {
@@ -24975,7 +25065,7 @@ async function run() {
         (0, import_node_child_process.execSync)(inputs.installCommand, { stdio: "inherit", cwd: process.cwd() });
       }
     }
-    const scanDir = path8.resolve(inputs.scanDir);
+    const scanDir = path9.resolve(inputs.scanDir);
     let findings = [];
     let scanMs = 0;
     let packageCount = 0;
@@ -25002,8 +25092,8 @@ async function run() {
       core3.info(`Drift detection: ${driftFindings.length} findings above threshold ${inputs.driftThreshold}`);
     }
     const allFindings = [...findings, ...driftFindings];
-    const sarifPath = path8.resolve(inputs.sarifOutput);
-    const sarifDir = path8.dirname(sarifPath);
+    const sarifPath = path9.resolve(inputs.sarifOutput);
+    const sarifDir = path9.dirname(sarifPath);
     if (!fs5.existsSync(sarifDir)) {
       fs5.mkdirSync(sarifDir, { recursive: true });
     }
@@ -25034,7 +25124,7 @@ function packageName(ref) {
 }
 function loadBaseline(inputs) {
   if (!inputs.baselineFile) return null;
-  const baselinePath = path8.resolve(inputs.baselineFile);
+  const baselinePath = path9.resolve(inputs.baselineFile);
   const events = readBaseline(baselinePath);
   if (events.length === 0) {
     core3.warning(`baseline-file ${baselinePath} is empty or missing \u2014 drift detection disabled.`);
@@ -25044,15 +25134,15 @@ function loadBaseline(inputs) {
   return events;
 }
 function runInstallMonitored(inputs, baselineEvents) {
-  const preloadPath = path8.resolve(__dirname, "recorder-preload.mjs");
+  const preloadPath = path9.resolve(__dirname, "recorder-preload.mjs");
   if (!fs5.existsSync(preloadPath)) {
     core3.warning(`recorder-preload.mjs not found at ${preloadPath} \u2014 running install unmonitored.`);
     core3.info(`Running: ${inputs.installCommand}`);
     (0, import_node_child_process.execSync)(inputs.installCommand, { stdio: "inherit", cwd: process.cwd() });
     return [];
   }
-  const recorderLog = path8.join(
-    fs5.mkdtempSync(path8.join(os2.tmpdir(), "chainwatch-action-")),
+  const recorderLog = path9.join(
+    fs5.mkdtempSync(path9.join(os2.tmpdir(), "chainwatch-action-")),
     "recorder.jsonl"
   );
   const preloadUrl = (0, import_node_url.pathToFileURL)(preloadPath).href;
@@ -25074,7 +25164,7 @@ function runInstallMonitored(inputs, baselineEvents) {
     core3.warning("No recorder events captured from install command.");
   } finally {
     try {
-      fs5.rmSync(path8.dirname(recorderLog), { recursive: true, force: true });
+      fs5.rmSync(path9.dirname(recorderLog), { recursive: true, force: true });
     } catch {
     }
   }
