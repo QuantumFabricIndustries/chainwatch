@@ -28,7 +28,8 @@ const CRED_PATTERNS: { re: RegExp; label: string }[] = [
   { re: /\.kube[\\/]config/, label: '~/.kube/config' },
   { re: /\.docker[\\/]config\.json/, label: '~/.docker/config.json' },
   { re: /\.git-credentials/, label: '~/.git-credentials' },
-  { re: /\.config[\\/]gh[\\/]hosts\.yml/, label: '~/.config/gh/hosts.yml (GitHub CLI token)' },
+  // Also path.join(home, '.config', 'gh', 'hosts.yml') and Windows' "GitHub CLI\hosts.yml".
+  { re: /(?:\bgh|GitHub CLI)['"]?\s*(?:[\\/]|['"]?\s*,\s*['"])hosts\.yml/, label: '~/.config/gh/hosts.yml (GitHub CLI token)' },
   { re: /\.netrc/, label: '~/.netrc' },
   { re: /%APPDATA%[\\/]npm/, label: '%APPDATA%\\npm' },
   { re: /%USERPROFILE%[\\/]\.ssh/, label: '%USERPROFILE%\\.ssh' },
@@ -57,7 +58,8 @@ const CRED_PATTERNS: { re: RegExp; label: string }[] = [
     label: 'Telegram session data (tdata)' },
 ];
 
-const ALLOWLIST = new Set(['npm', 'yarn', 'pnpm', 'config', 'rc', 'dotenv']);
+// chainwatch lists these paths as detection patterns.
+const ALLOWLIST = new Set(['npm', 'yarn', 'pnpm', 'config', 'rc', 'dotenv', 'chainwatch']);
 
 export const credentialFileAccess: Rule = {
   id: 'credential_file_access',

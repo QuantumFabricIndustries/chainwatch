@@ -68,7 +68,7 @@ export const DEFAULT_POLICY: Policy = {
     /(?:^|[\\/])\.netrc$/i,
     /(?:^|[\\/])\.pypirc$/i,
     // gh CLI's stored GitHub token — the tensorlake worm's main target.
-    /[\\/]\.config[\\/]gh[\\/]hosts\.yml$/i,
+    /[\\/](?:\.config[\\/]gh|GitHub CLI)[\\/]hosts\.yml$/i,
   ],
   trustedPackages: [],
 };

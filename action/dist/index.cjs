@@ -181,8 +181,8 @@ var require_file_command = __commonJS({
     };
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.prepareKeyValueMessage = exports2.issueFileCommand = void 0;
-    var crypto = __importStar(require("crypto"));
-    var fs6 = __importStar(require("fs"));
+    var crypto2 = __importStar(require("crypto"));
+    var fs7 = __importStar(require("fs"));
     var os3 = __importStar(require("os"));
     var utils_1 = require_utils();
     function issueFileCommand(command, message) {
@@ -190,16 +190,16 @@ var require_file_command = __commonJS({
       if (!filePath) {
         throw new Error(`Unable to find environment variable for file command ${command}`);
       }
-      if (!fs6.existsSync(filePath)) {
+      if (!fs7.existsSync(filePath)) {
         throw new Error(`Missing file at path: ${filePath}`);
       }
-      fs6.appendFileSync(filePath, `${(0, utils_1.toCommandValue)(message)}${os3.EOL}`, {
+      fs7.appendFileSync(filePath, `${(0, utils_1.toCommandValue)(message)}${os3.EOL}`, {
         encoding: "utf8"
       });
     }
     exports2.issueFileCommand = issueFileCommand;
     function prepareKeyValueMessage(key, value) {
-      const delimiter = `ghadelimiter_${crypto.randomUUID()}`;
+      const delimiter = `ghadelimiter_${crypto2.randomUUID()}`;
       const convertedValue = (0, utils_1.toCommandValue)(value);
       if (key.includes(delimiter)) {
         throw new Error(`Unexpected input: name should not contain the delimiter "${delimiter}"`);
@@ -2617,7 +2617,7 @@ var require_parseParams = __commonJS({
 var require_basename = __commonJS({
   "node_modules/@fastify/busboy/lib/utils/basename.js"(exports2, module2) {
     "use strict";
-    module2.exports = function basename(path10) {
+    module2.exports = function basename2(path10) {
       if (typeof path10 !== "string") {
         return "";
       }
@@ -2644,7 +2644,7 @@ var require_multipart = __commonJS({
     var Dicer = require_Dicer();
     var parseParams = require_parseParams();
     var decodeText = require_decodeText();
-    var basename = require_basename();
+    var basename2 = require_basename();
     var getLimit = require_getLimit();
     var RE_BOUNDARY = /^boundary$/i;
     var RE_FIELD = /^form-data$/i;
@@ -2761,7 +2761,7 @@ var require_multipart = __commonJS({
               } else if (RE_FILENAME.test(parsed[i][0])) {
                 filename = parsed[i][1];
                 if (!preservePath) {
-                  filename = basename(filename);
+                  filename = basename2(filename);
                 }
               }
             }
@@ -3634,11 +3634,11 @@ var require_util2 = __commonJS({
     var assert = require("assert");
     var { isUint8Array } = require("util/types");
     var supportedHashes = [];
-    var crypto;
+    var crypto2;
     try {
-      crypto = require("crypto");
+      crypto2 = require("crypto");
       const possibleRelevantHashes = ["sha256", "sha384", "sha512"];
-      supportedHashes = crypto.getHashes().filter((hash) => possibleRelevantHashes.includes(hash));
+      supportedHashes = crypto2.getHashes().filter((hash) => possibleRelevantHashes.includes(hash));
     } catch {
     }
     function responseURL(response) {
@@ -3915,7 +3915,7 @@ var require_util2 = __commonJS({
       }
     }
     function bytesMatch(bytes, metadataList) {
-      if (crypto === void 0) {
+      if (crypto2 === void 0) {
         return true;
       }
       const parsedMetadata = parseMetadata(metadataList);
@@ -3930,7 +3930,7 @@ var require_util2 = __commonJS({
       for (const item of metadata) {
         const algorithm = item.algo;
         const expectedValue = item.hash;
-        let actualValue = crypto.createHash(algorithm).update(bytes).digest("base64");
+        let actualValue = crypto2.createHash(algorithm).update(bytes).digest("base64");
         if (actualValue[actualValue.length - 1] === "=") {
           if (actualValue[actualValue.length - 2] === "=") {
             actualValue = actualValue.slice(0, -2);
@@ -5276,8 +5276,8 @@ var require_body = __commonJS({
     var { parseMIMEType, serializeAMimeType } = require_dataURL();
     var random;
     try {
-      const crypto = require("node:crypto");
-      random = (max) => crypto.randomInt(0, max);
+      const crypto2 = require("node:crypto");
+      random = (max) => crypto2.randomInt(0, max);
     } catch {
       random = (max) => Math.floor(Math.random(max));
     }
@@ -16327,9 +16327,9 @@ var require_connection = __commonJS({
     channels.open = diagnosticsChannel.channel("undici:websocket:open");
     channels.close = diagnosticsChannel.channel("undici:websocket:close");
     channels.socketError = diagnosticsChannel.channel("undici:websocket:socket_error");
-    var crypto;
+    var crypto2;
     try {
-      crypto = require("crypto");
+      crypto2 = require("crypto");
     } catch {
     }
     function establishWebSocketConnection(url, protocols, ws, onEstablish, options) {
@@ -16348,7 +16348,7 @@ var require_connection = __commonJS({
         const headersList = new Headers(options.headers)[kHeadersList];
         request.headersList = headersList;
       }
-      const keyValue = crypto.randomBytes(16).toString("base64");
+      const keyValue = crypto2.randomBytes(16).toString("base64");
       request.headersList.append("sec-websocket-key", keyValue);
       request.headersList.append("sec-websocket-version", "13");
       for (const protocol of protocols) {
@@ -16377,7 +16377,7 @@ var require_connection = __commonJS({
             return;
           }
           const secWSAccept = response.headersList.get("Sec-WebSocket-Accept");
-          const digest = crypto.createHash("sha1").update(keyValue + uid).digest("base64");
+          const digest = crypto2.createHash("sha1").update(keyValue + uid).digest("base64");
           if (secWSAccept !== digest) {
             failWebsocketConnection(ws, "Incorrect hash received in Sec-WebSocket-Accept header.");
             return;
@@ -16457,9 +16457,9 @@ var require_frame = __commonJS({
   "node_modules/undici/lib/websocket/frame.js"(exports2, module2) {
     "use strict";
     var { maxUnsigned16Bit } = require_constants5();
-    var crypto;
+    var crypto2;
     try {
-      crypto = require("crypto");
+      crypto2 = require("crypto");
     } catch {
     }
     var WebsocketFrameSend = class {
@@ -16468,7 +16468,7 @@ var require_frame = __commonJS({
        */
       constructor(data) {
         this.frameData = data;
-        this.maskKey = crypto.randomBytes(4);
+        this.maskKey = crypto2.randomBytes(4);
       }
       createFrame(opcode) {
         const bodyLength = this.frameData?.byteLength ?? 0;
@@ -18510,12 +18510,12 @@ var require_io_util = __commonJS({
     var _a;
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.getCmdPath = exports2.tryGetExecutablePath = exports2.isRooted = exports2.isDirectory = exports2.exists = exports2.READONLY = exports2.UV_FS_O_EXLOCK = exports2.IS_WINDOWS = exports2.unlink = exports2.symlink = exports2.stat = exports2.rmdir = exports2.rm = exports2.rename = exports2.readlink = exports2.readdir = exports2.open = exports2.mkdir = exports2.lstat = exports2.copyFile = exports2.chmod = void 0;
-    var fs6 = __importStar(require("fs"));
+    var fs7 = __importStar(require("fs"));
     var path10 = __importStar(require("path"));
-    _a = fs6.promises, exports2.chmod = _a.chmod, exports2.copyFile = _a.copyFile, exports2.lstat = _a.lstat, exports2.mkdir = _a.mkdir, exports2.open = _a.open, exports2.readdir = _a.readdir, exports2.readlink = _a.readlink, exports2.rename = _a.rename, exports2.rm = _a.rm, exports2.rmdir = _a.rmdir, exports2.stat = _a.stat, exports2.symlink = _a.symlink, exports2.unlink = _a.unlink;
+    _a = fs7.promises, exports2.chmod = _a.chmod, exports2.copyFile = _a.copyFile, exports2.lstat = _a.lstat, exports2.mkdir = _a.mkdir, exports2.open = _a.open, exports2.readdir = _a.readdir, exports2.readlink = _a.readlink, exports2.rename = _a.rename, exports2.rm = _a.rm, exports2.rmdir = _a.rmdir, exports2.stat = _a.stat, exports2.symlink = _a.symlink, exports2.unlink = _a.unlink;
     exports2.IS_WINDOWS = process.platform === "win32";
     exports2.UV_FS_O_EXLOCK = 268435456;
-    exports2.READONLY = fs6.constants.O_RDONLY;
+    exports2.READONLY = fs7.constants.O_RDONLY;
     function exists(fsPath) {
       return __awaiter(this, void 0, void 0, function* () {
         try {
@@ -23889,7 +23889,7 @@ __export(main_exports, {
 });
 module.exports = __toCommonJS(main_exports);
 var core3 = __toESM(require_core(), 1);
-var fs5 = __toESM(require("node:fs"), 1);
+var fs6 = __toESM(require("node:fs"), 1);
 var path9 = __toESM(require("node:path"), 1);
 var os2 = __toESM(require("node:os"), 1);
 var zlib = __toESM(require("node:zlib"), 1);
@@ -23897,7 +23897,7 @@ var import_node_url = require("node:url");
 var import_node_child_process = require("node:child_process");
 
 // src/scan/scanner.ts
-var fs3 = __toESM(require("node:fs"), 1);
+var fs4 = __toESM(require("node:fs"), 1);
 var path8 = __toESM(require("node:path"), 1);
 
 // src/scan/finding.ts
@@ -24145,7 +24145,8 @@ var CRED_PATTERNS = [
   { re: /\.kube[\\/]config/, label: "~/.kube/config" },
   { re: /\.docker[\\/]config\.json/, label: "~/.docker/config.json" },
   { re: /\.git-credentials/, label: "~/.git-credentials" },
-  { re: /\.config[\\/]gh[\\/]hosts\.yml/, label: "~/.config/gh/hosts.yml (GitHub CLI token)" },
+  // Also path.join(home, '.config', 'gh', 'hosts.yml') and Windows' "GitHub CLI\hosts.yml".
+  { re: /(?:\bgh|GitHub CLI)['"]?\s*(?:[\\/]|['"]?\s*,\s*['"])hosts\.yml/, label: "~/.config/gh/hosts.yml (GitHub CLI token)" },
   { re: /\.netrc/, label: "~/.netrc" },
   { re: /%APPDATA%[\\/]npm/, label: "%APPDATA%\\npm" },
   { re: /%USERPROFILE%[\\/]\.ssh/, label: "%USERPROFILE%\\.ssh" },
@@ -24182,7 +24183,7 @@ var CRED_PATTERNS = [
     label: "Telegram session data (tdata)"
   }
 ];
-var ALLOWLIST = /* @__PURE__ */ new Set(["npm", "yarn", "pnpm", "config", "rc", "dotenv"]);
+var ALLOWLIST = /* @__PURE__ */ new Set(["npm", "yarn", "pnpm", "config", "rc", "dotenv", "chainwatch"]);
 var credentialFileAccess = {
   id: "credential_file_access",
   check(meta) {
@@ -24473,23 +24474,32 @@ var dependencyConfusion = {
 };
 
 // src/scan/rules/hostage-token.ts
+var crypto = __toESM(require("node:crypto"), 1);
+var fs3 = __toESM(require("node:fs"), 1);
 var path7 = __toESM(require("node:path"), 1);
 var REVOKE_WARNING = "Do NOT revoke tokens yet: remove the package and its gh-token-monitor first (run `chainwatch hostage-check`), then rotate.";
 var KNOWN_COMPROMISED = {
   tensorlake: ["0.5.144"]
 };
+var KNOWN_PAYLOAD_SHA256 = {
+  "25a0735d0db7dc40e5d45ce42d9c106067e6a66e184d967cfecfab17c3bcb5ef": "setup.mjs loader",
+  b50a00900399ba99fb6ce1fc151519cb99d44320ef2a631f2237e1aea0ad6fec: "Math_Symbol.js payload"
+};
+var PAYLOAD_NAMES = /* @__PURE__ */ new Set(["setup.mjs", "Math_Symbol.js"]);
+var SELF = "chainwatch";
 var IOC_PATTERNS = [
   { re: /gh-token-monitor/, label: "gh-token-monitor dead-man switch" },
   { re: /iseekaigogo\.com/i, label: "tensorlake worm C2 domain" },
   { re: /Shai-Hulud: Here We Go Again/i, label: "Shai-Hulud exfil repo description" }
 ];
-var TOKEN_CHECK_RE = /api\.github\.com\/user\b|gh\s+auth\s+status|Authorization['"]?\s*[:=]\s*[`'"](?:token|Bearer)\s/i;
+var TOKEN_CHECK_RE = /api\.github\.com\/user\b|gh\s+auth\s+status|gh\s+api\s+\/?user\b|Authorization['"]?\s*[:=]\s*[`'"]?(?:token|Bearer)\s/i;
 var HOME_WIPE_RE = new RegExp(
   [
-    String.raw`rm\s+-(?:rf|fr)\s+(?:~\/?|"?\$(?:HOME|\{HOME\})\/?"?)(?=[\s;&|'"\x60)]|$)`,
+    // rm -rf ~ | rm -Rf -- "$HOME"/* | rm -r -f ${HOME}/
+    String.raw`rm\s+(?:-[rRf]+\s+){1,2}(?:--\s+)?(?:~\/?|"?\$(?:HOME|\{HOME\})"?\/?)\*?"?(?=[\s;&|'"\x60)]|$)`,
     String.raw`Remove-Item[^\n]{0,80}\$env:USERPROFILE[^\n]{0,40}-Recurse`,
     String.raw`Remove-Item[^\n]{0,40}-Recurse[^\n]{0,80}\$env:USERPROFILE`,
-    String.raw`(?:rmSync|rmdirSync|rimraf(?:\.sync)?)\s*\(\s*(?:os\.)?homedir\(\)`
+    String.raw`\b(?:rmSync|rmdirSync|rm|rimraf(?:\.sync)?)\s*\(\s*(?:(?:os\.)?homedir\(\)|process\.env\.(?:HOME|USERPROFILE))\s*[,)]`
   ].join("|"),
   "m"
 );
@@ -24500,6 +24510,7 @@ var hostageToken = {
   check(meta) {
     const findings = [];
     const pkgRef = `${meta.name}@${meta.version}`;
+    if (meta.name === SELF) return findings;
     if (KNOWN_COMPROMISED[meta.name]?.includes(meta.version)) {
       findings.push({
         rule: "hostage_token",
@@ -24514,7 +24525,24 @@ var hostageToken = {
     const sources = [{ rel: "package.json", content: scriptText }];
     for (const file of collectSourceFiles(meta.path)) {
       const content = readFileSafe(file);
-      if (content) sources.push({ rel: path7.relative(meta.path, file), content });
+      if (!content) continue;
+      const rel = path7.relative(meta.path, file);
+      if (PAYLOAD_NAMES.has(path7.basename(file))) {
+        const sha = crypto.createHash("sha256").update(fs3.readFileSync(file)).digest("hex");
+        const label = KNOWN_PAYLOAD_SHA256[sha];
+        if (label) {
+          findings.push({
+            rule: "hostage_token",
+            severity: "critical",
+            package: pkgRef,
+            description: `File matches the published tensorlake worm ${label} hash. ${REVOKE_WARNING}`,
+            file: rel,
+            evidence: `sha256:${sha}`
+          });
+          continue;
+        }
+      }
+      sources.push({ rel, content });
     }
     for (const { rel, content } of sources) {
       const ioc = IOC_PATTERNS.find(({ re }) => re.test(content));
@@ -24577,10 +24605,10 @@ function discoverPackages(nodeModulesDir) {
   return packages;
 }
 function discoverInto(dir, packages, visited, depth, scope) {
-  if (depth > 6 || !fs3.existsSync(dir)) return;
+  if (depth > 6 || !fs4.existsSync(dir)) return;
   let entries;
   try {
-    entries = fs3.readdirSync(dir, { withFileTypes: true });
+    entries = fs4.readdirSync(dir, { withFileTypes: true });
   } catch {
     return;
   }
@@ -24596,7 +24624,7 @@ function discoverInto(dir, packages, visited, depth, scope) {
     if (!meta) continue;
     let real = pkgPath;
     try {
-      real = fs3.realpathSync(pkgPath);
+      real = fs4.realpathSync(pkgPath);
     } catch {
     }
     if (visited.has(real)) continue;
@@ -24609,7 +24637,7 @@ function readPackageMeta(pkgPath, fallbackName) {
   const pkgJsonPath = path8.join(pkgPath, "package.json");
   let raw;
   try {
-    raw = JSON.parse(fs3.readFileSync(pkgJsonPath, "utf8"));
+    raw = JSON.parse(fs4.readFileSync(pkgJsonPath, "utf8"));
   } catch {
     return null;
   }
@@ -24628,7 +24656,7 @@ async function scan(nodeModulesDir, opts = {}) {
   if (!context.packageLock) {
     const lockPath = path8.join(path8.dirname(nodeModulesDir), "package-lock.json");
     try {
-      const lock = JSON.parse(fs3.readFileSync(lockPath, "utf8"));
+      const lock = JSON.parse(fs4.readFileSync(lockPath, "utf8"));
       context = { ...context, packageLock: lock };
     } catch {
     }
@@ -24762,7 +24790,7 @@ function generateSarifObject(findings, toolVersion = CW_VERSION) {
           driver: {
             name: "ChainWatch",
             version: toolVersion,
-            informationUri: "https://github.com/quantum-fabric-industries/chainwatch",
+            informationUri: "https://github.com/QuantumFabricIndustries/chainwatch",
             rules
           }
         },
@@ -24823,7 +24851,7 @@ function toSarifResult(f) {
 }
 
 // src/baseline/store.ts
-var fs4 = __toESM(require("node:fs"), 1);
+var fs5 = __toESM(require("node:fs"), 1);
 var os = __toESM(require("node:os"), 1);
 
 // src/baseline/types.ts
@@ -24837,7 +24865,7 @@ var CWD = process.cwd();
 var TMP = os.tmpdir();
 function readBaseline(filePath) {
   try {
-    const content = fs4.readFileSync(filePath, "utf8");
+    const content = fs5.readFileSync(filePath, "utf8");
     return content.split("\n").filter((line) => line.trim()).map((line) => JSON.parse(line));
   } catch {
     return [];
@@ -25073,7 +25101,7 @@ async function run() {
     let findings = [];
     let scanMs = 0;
     let packageCount = 0;
-    if (fs5.existsSync(scanDir)) {
+    if (fs6.existsSync(scanDir)) {
       core3.info(`Scanning ${scanDir}...`);
       const result = await scan(scanDir, { minSeverity: inputs.severity });
       findings = result.findings;
@@ -25098,10 +25126,10 @@ async function run() {
     const allFindings = [...findings, ...driftFindings];
     const sarifPath = path9.resolve(inputs.sarifOutput);
     const sarifDir = path9.dirname(sarifPath);
-    if (!fs5.existsSync(sarifDir)) {
-      fs5.mkdirSync(sarifDir, { recursive: true });
+    if (!fs6.existsSync(sarifDir)) {
+      fs6.mkdirSync(sarifDir, { recursive: true });
     }
-    fs5.writeFileSync(sarifPath, formatSarif(allFindings), "utf8");
+    fs6.writeFileSync(sarifPath, formatSarif(allFindings), "utf8");
     core3.info(`SARIF written to ${sarifPath}`);
     if (inputs.uploadSarif) {
       await uploadSarif(sarifPath, inputs);
@@ -25139,14 +25167,14 @@ function loadBaseline(inputs) {
 }
 function runInstallMonitored(inputs, baselineEvents) {
   const preloadPath = path9.resolve(__dirname, "recorder-preload.mjs");
-  if (!fs5.existsSync(preloadPath)) {
+  if (!fs6.existsSync(preloadPath)) {
     core3.warning(`recorder-preload.mjs not found at ${preloadPath} \u2014 running install unmonitored.`);
     core3.info(`Running: ${inputs.installCommand}`);
     (0, import_node_child_process.execSync)(inputs.installCommand, { stdio: "inherit", cwd: process.cwd() });
     return [];
   }
   const recorderLog = path9.join(
-    fs5.mkdtempSync(path9.join(os2.tmpdir(), "chainwatch-action-")),
+    fs6.mkdtempSync(path9.join(os2.tmpdir(), "chainwatch-action-")),
     "recorder.jsonl"
   );
   const preloadUrl = (0, import_node_url.pathToFileURL)(preloadPath).href;
@@ -25163,12 +25191,12 @@ function runInstallMonitored(inputs, baselineEvents) {
   });
   let recorded = [];
   try {
-    recorded = fs5.readFileSync(recorderLog, "utf8").split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l));
+    recorded = fs6.readFileSync(recorderLog, "utf8").split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l));
   } catch {
     core3.warning("No recorder events captured from install command.");
   } finally {
     try {
-      fs5.rmSync(path9.dirname(recorderLog), { recursive: true, force: true });
+      fs6.rmSync(path9.dirname(recorderLog), { recursive: true, force: true });
     } catch {
     }
   }
@@ -25194,7 +25222,7 @@ async function uploadSarif(sarifPath, inputs) {
   }
   try {
     const { context, getOctokit } = await Promise.resolve().then(() => __toESM(require_github(), 1));
-    const compressed = zlib.gzipSync(fs5.readFileSync(sarifPath)).toString("base64");
+    const compressed = zlib.gzipSync(fs6.readFileSync(sarifPath)).toString("base64");
     const octokit = getOctokit(inputs.githubToken);
     await octokit.rest.codeScanning.uploadSarif({
       owner: context.repo.owner,

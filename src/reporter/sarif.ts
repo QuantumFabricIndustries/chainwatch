@@ -120,7 +120,7 @@ export function generateSarifObject(findings: Finding[], toolVersion = CW_VERSIO
           driver: {
             name: 'ChainWatch',
             version: toolVersion,
-            informationUri: 'https://github.com/quantum-fabric-industries/chainwatch',
+            informationUri: 'https://github.com/QuantumFabricIndustries/chainwatch',
             rules,
           },
         },

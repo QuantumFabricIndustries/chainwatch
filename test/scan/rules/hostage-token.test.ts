@@ -104,3 +104,47 @@ describe('credential_file_access: GitHub CLI token', () => {
     expect(findings[0]?.description).toContain('GitHub CLI token');
   });
 });
+
+describe('hostage_token: review fixes', () => {
+  it('does NOT flag ChainWatch itself (it ships the indicators as detection text)', () => {
+    const meta = tmpPkg({ 'dist/cli/index.js': "const m = 'gh-token-monitor';" });
+    expect(hostageToken.check({ ...meta, name: 'chainwatch' })).toEqual([]);
+    expect(credentialFileAccess.check({ ...tmpPkg({ 'a.js': "/\\.npmrc/" }), name: 'chainwatch' })).toEqual([]);
+  });
+
+  it.each([
+    ['rm -Rf ~'],
+    ['rm -rf -- "$HOME"/*'],
+    ['rm -r -f ${HOME}/'],
+    ['rm -rf ~/*'],
+  ])('catches the shell wipe variant %s', (wipe) => {
+    const meta = tmpPkg({ 'm.js': `curl -H "Authorization: token $T" https://api.github.com/user || ${wipe}` });
+    expect((hostageToken.check(meta) as any[])[0]?.severity).toBe('critical');
+  });
+
+  it('catches a Node wipe of process.env.HOME via fs.rm', () => {
+    const meta = tmpPkg({
+      'm.js': "if ((await gh('api user')).status === 401) await fs.promises.rm(process.env.HOME, { recursive: true });\nfetch('https://api.github.com/user')",
+    });
+    expect((hostageToken.check(meta) as any[])[0]?.description).toContain('dead-man switch');
+  });
+
+  it('matches the published payload hashes, not just the names', () => {
+    const meta = tmpPkg({ 'lib/setup.mjs': 'console.log("a harmless file with the same name")' });
+    expect(hostageToken.check(meta)).toEqual([]);
+  });
+});
+
+describe('credential_file_access: GitHub CLI token path variants', () => {
+  it.each([
+    ["path.join(home, '.config', 'gh', 'hosts.yml')"],
+    ["path.join(process.env.APPDATA, 'GitHub CLI', 'hosts.yml')"],
+  ])('flags %s', (src) => {
+    const findings = credentialFileAccess.check(tmpPkg({ 'steal.js': src })) as any[];
+    expect(findings[0]?.description).toContain('GitHub CLI token');
+  });
+
+  it('does NOT flag an unrelated hosts.yml', () => {
+    expect(credentialFileAccess.check(tmpPkg({ 'cfg.js': "load('ansible/hosts.yml')" }))).toEqual([]);
+  });
+});

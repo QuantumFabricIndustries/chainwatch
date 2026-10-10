@@ -1,3 +1,7 @@
+# Example workflow for projects that use ChainWatch. Copy it to .github/workflows/
+# in your own repo. It lives here, not in this repo's workflows, because it
+# references the published action rather than this checkout.
+
 name: Supply Chain Scan
 
 on:
@@ -32,7 +36,7 @@ jobs:
         run: npm ci
 
       - name: ChainWatch supply chain scan
-        uses: quantum-fabric-industries/chainwatch@v1
+        uses: QuantumFabricIndustries/chainwatch@master
         with:
           severity: medium
           fail-on: high
@@ -57,7 +61,7 @@ jobs:
 #          restore-keys: chainwatch-baseline-${{ runner.os }}-
 #
 #      - name: ChainWatch scan + drift detection
-#        uses: quantum-fabric-industries/chainwatch@v1
+#        uses: QuantumFabricIndustries/chainwatch@master
 #        with:
 #          severity: medium
 #          fail-on: high
