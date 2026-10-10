@@ -217,7 +217,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: ChainWatch supply chain scan
-        uses: quantum-fabric-industries/chainwatch@v1
+        uses: QuantumFabricIndustries/chainwatch@master
         with:
           severity: medium
           fail-on: high
@@ -244,7 +244,7 @@ No manual baseline management required.
           restore-keys: chainwatch-baseline-${{ runner.os }}-
 
       - name: ChainWatch scan + drift detection
-        uses: quantum-fabric-industries/chainwatch@v1
+        uses: QuantumFabricIndustries/chainwatch@master
         with:
           severity: medium
           fail-on: high

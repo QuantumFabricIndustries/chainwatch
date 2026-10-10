@@ -18,6 +18,8 @@
  * Every finding says to remove the package and its monitor BEFORE revoking.
  */
 
+import * as crypto from 'node:crypto';
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { Finding } from '../finding.js';
 import type { Rule, PackageMeta } from '../types.js';
@@ -31,6 +33,16 @@ export const KNOWN_COMPROMISED: Record<string, string[]> = {
   tensorlake: ['0.5.144'],
 };
 
+/** SHA-256 of the published payload files (StepSecurity, Oct 2026). */
+const KNOWN_PAYLOAD_SHA256: Record<string, string> = {
+  '25a0735d0db7dc40e5d45ce42d9c106067e6a66e184d967cfecfab17c3bcb5ef': 'setup.mjs loader',
+  b50a00900399ba99fb6ce1fc151519cb99d44320ef2a631f2237e1aea0ad6fec: 'Math_Symbol.js payload',
+};
+const PAYLOAD_NAMES = new Set(['setup.mjs', 'Math_Symbol.js']);
+
+/** ChainWatch carries these indicators itself, as detection and remediation text. */
+const SELF = 'chainwatch';
+
 /** Strings no legitimate package ships. */
 const IOC_PATTERNS: { re: RegExp; label: string }[] = [
   { re: /gh-token-monitor/, label: 'gh-token-monitor dead-man switch' },
@@ -40,15 +52,16 @@ const IOC_PATTERNS: { re: RegExp; label: string }[] = [
 
 // Checks whether a stolen GitHub token still works.
 const TOKEN_CHECK_RE =
-  /api\.github\.com\/user\b|gh\s+auth\s+status|Authorization['"]?\s*[:=]\s*[`'"](?:token|Bearer)\s/i;
+  /api\.github\.com\/user\b|gh\s+auth\s+status|gh\s+api\s+\/?user\b|Authorization['"]?\s*[:=]\s*[`'"]?(?:token|Bearer)\s/i;
 
 // Wipes the user's home directory (POSIX shell, PowerShell, or Node).
 const HOME_WIPE_RE = new RegExp(
   [
-    String.raw`rm\s+-(?:rf|fr)\s+(?:~\/?|"?\$(?:HOME|\{HOME\})\/?"?)(?=[\s;&|'"\x60)]|$)`,
+    // rm -rf ~ | rm -Rf -- "$HOME"/* | rm -r -f ${HOME}/
+    String.raw`rm\s+(?:-[rRf]+\s+){1,2}(?:--\s+)?(?:~\/?|"?\$(?:HOME|\{HOME\})"?\/?)\*?"?(?=[\s;&|'"\x60)]|$)`,
     String.raw`Remove-Item[^\n]{0,80}\$env:USERPROFILE[^\n]{0,40}-Recurse`,
     String.raw`Remove-Item[^\n]{0,40}-Recurse[^\n]{0,80}\$env:USERPROFILE`,
-    String.raw`(?:rmSync|rmdirSync|rimraf(?:\.sync)?)\s*\(\s*(?:os\.)?homedir\(\)`,
+    String.raw`\b(?:rmSync|rmdirSync|rm|rimraf(?:\.sync)?)\s*\(\s*(?:(?:os\.)?homedir\(\)|process\.env\.(?:HOME|USERPROFILE))\s*[,)]`,
   ].join('|'),
   'm',
 );
@@ -63,6 +76,7 @@ export const hostageToken: Rule = {
   check(meta: PackageMeta): Finding[] {
     const findings: Finding[] = [];
     const pkgRef = `${meta.name}@${meta.version}`;
+    if (meta.name === SELF) return findings;
 
     if (KNOWN_COMPROMISED[meta.name]?.includes(meta.version)) {
       findings.push({
@@ -80,7 +94,25 @@ export const hostageToken: Rule = {
     const sources: { rel: string; content: string }[] = [{ rel: 'package.json', content: scriptText }];
     for (const file of collectSourceFiles(meta.path)) {
       const content = readFileSafe(file);
-      if (content) sources.push({ rel: path.relative(meta.path, file), content });
+      if (!content) continue;
+      const rel = path.relative(meta.path, file);
+      if (PAYLOAD_NAMES.has(path.basename(file))) {
+        // Hash raw bytes: the published hashes are of the files as shipped.
+        const sha = crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+        const label = KNOWN_PAYLOAD_SHA256[sha];
+        if (label) {
+          findings.push({
+            rule: 'hostage_token',
+            severity: 'critical',
+            package: pkgRef,
+            description: `File matches the published tensorlake worm ${label} hash. ${REVOKE_WARNING}`,
+            file: rel,
+            evidence: `sha256:${sha}`,
+          });
+          continue;
+        }
+      }
+      sources.push({ rel, content });
     }
 
     for (const { rel, content } of sources) {
